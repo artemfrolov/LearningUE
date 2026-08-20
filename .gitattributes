@@ -1,0 +1,17 @@
+# Normalize text files; let git decide by content for anything unlisted.
+* text=auto
+
+# Unreal binary assets. Marking them explicitly stops git from ever
+# attempting line-ending conversion or a useless textual diff on them.
+# For the real project these are the files that would move to Git LFS.
+*.uasset binary
+*.umap   binary
+*.ubulk  binary
+*.uexp   binary
+*.upack  binary
+
+# Source and config stay text.
+*.cpp text
+*.h   text
+*.cs  text
+*.ini text
