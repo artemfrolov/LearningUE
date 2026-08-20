@@ -1,0 +1,16 @@
+# Unreal generated / regenerable
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# IDE
+.vs/
+.vscode/
+*.sln
+*.suo
+*.code-workspace
+
+# Claude Code local state
+.claude/settings.local.json
