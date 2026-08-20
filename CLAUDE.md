@@ -86,10 +86,39 @@ a third-person character with **Health / Stamina / Mana** bars → **sidestep do
 enemy** with basic AI and the **four detection states** → character death and enemy
 death. Nothing more. Every phase below feeds this slice.
 
+## The Showcase Build (the thing I can actually hand to someone)
+
+The vertical slice must end as a **packaged Windows build I can install on my son's
+PC** and say "your dad made this — and you could too." A slice that only runs inside
+the editor is not something you can give to a person.
+
+This adds a small amount of scope, on purpose:
+
+- A title screen with Start and Quit. Nothing fancy: a background and two buttons.
+- A coherent two-minute experience: spawn, fight the one enemy, win or die, restart.
+- A project name, an icon, and an .exe that launches by double-clicking it.
+
+**Package twice.** A throwaway build at the end of Phase 1, while the project is still
+trivial, purely to prove the pipeline works — first packages fail in surprising ways
+(missing default map, cook errors, absent redistributables) and I want to hit those
+while there is almost nothing to debug. Then the real build in Phase 7.
+
 ## Learning Roadmap
 
 Work through phases in order. Start each phase by explaining its concepts, end it
 with the phase's exercise. Mark progress in SESSION_LOG.md.
+
+**The standard loop: read → strip → rebuild → compare.** This project began from the
+Third Person template *with all variants included*, so Epic has already written a
+working version of several things on this roadmap (SESSION_LOG.md has the inventory).
+Do not skip past those, and do not let me copy them. For each one:
+
+1. **Read** — dissect Epic's implementation together; name every unfamiliar construct.
+2. **Strip** — separate what is essential to the idea from what is incidental polish.
+3. **Rebuild** — I write my own, simpler version from a blank class. Mine, not theirs.
+4. **Compare** — diff mine against Epic's; discuss what they knew that I didn't.
+
+Step 4 is where the learning actually lands. Do not let me skip it.
 
 **Phase 0 — Orientation (editor + project anatomy).** What is in a UE project folder
 (Source, Content, Config, .uproject; what's regenerable). Actors, Components, the
@@ -126,8 +155,15 @@ abilities, gameplay effects, tags. Compare with what we hand-built in Phases 2�
 discuss what the real project should use. No big implementation — a decision session.
 _Serves: spells, techniques, DoTs, concentration — the systems the dream game runs on._
 
-After Phase 6: assemble the vertical slice properly, then decide together what the
-real project's foundation looks like.
+**Phase 7 — Ship it.** Packaging and cooking: Development vs Shipping builds, the
+default-map trap, what actually lands in the output folder and why it is that large.
+A minimal main menu (UMG widget, Start/Quit, level load). Project name and icon.
+Produce a Windows build that runs by double-click on a machine with no Unreal
+installed. _Exercise: I install it on my son's PC and watch someone who has never seen
+it try to play it._ _Serves: the reason any of this was worth doing._
+
+After Phase 7: the slice is assembled and shippable. Then decide together what the
+real project's foundation looks like — and start it clean.
 
 ## Practical conventions
 
