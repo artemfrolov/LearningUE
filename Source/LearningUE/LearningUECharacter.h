@@ -49,6 +49,18 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
+	/** Sprint Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* SprintAction;
+
+	/** Normal movement speed, in cm/s */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float WalkSpeed = 500.0f;
+
+	/** Movement speed while sprinting, in cm/s */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float SprintSpeed = 900.0f;
+
 public:
 
 	/** Constructor */
@@ -66,6 +78,12 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+	/** Called when the sprint input starts */
+	void SprintStart();
+
+	/** Called when the sprint input ends */
+	void SprintEnd();
 
 public:
 

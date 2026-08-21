@@ -30,7 +30,7 @@ ALearningUECharacter::ALearningUECharacter()
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
@@ -65,6 +65,11 @@ void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ALearningUECharacter::Look);
+
+		// Sprinting
+		// UE idiom: one action, two events - key down and key up drive separate functions
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ALearningUECharacter::SprintStart);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ALearningUECharacter::SprintEnd);
 	}
 	else
 	{
@@ -130,4 +135,16 @@ void ALearningUECharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+}
+
+void ALearningUECharacter::SprintStart()
+{
+	// raise the movement component's speed cap for as long as the key is held
+	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+}
+
+void ALearningUECharacter::SprintEnd()
+{
+	// restore the normal cap
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 }
