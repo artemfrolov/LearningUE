@@ -122,10 +122,21 @@ concept to be anchored to Roblox Studio or web development first.
 `MaxWalkSpeed = 200.f` in C++ (was 500 in the template). The Blueprint override was
 added, then reset, so it now inherits. Set it back to 500 if 200 feels sluggish.
 
-### Still open
+### Decision: keep all template variants (0.5 cancelled)
 
-- **0.5 (optional):** delete `Variant_Platforming` and `Variant_SideScrolling`
-  (34 source files, 2 maps). Teaches `Build.cs` include paths. Can break the build.
+Do NOT delete `Variant_Platforming` / `Variant_SideScrolling`. My call, and the
+reasoning holds: deleting working code with no forcing reason is risk without
+payoff, and a broken build mid-Phase-1 costs more than the ~25% rebuild time it
+would save. They also stay useful as reading material — two different solutions to
+the same problems as `Variant_Combat`.
+
+Revisit when starting the real project, where a clean foundation is the point.
+
+### State of the code
+
+`MaxWalkSpeed` restored to `500.f` (template default). Base values belong in the
+C++ base class; the Blueprint is for tuning, and pinning a base value there is the
+trap 0.4 taught.
 
 ### Phase progress
 
