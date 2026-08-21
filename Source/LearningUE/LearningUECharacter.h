@@ -61,6 +61,21 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Movement")
 	float SprintSpeed = 900.0f;
 
+	/** Dodge Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* DodgeAction;
+
+	/** Speed of the dodge burst, in cm/s. Decays through the movement component's braking. */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float DodgeImpulse = 1200.0f;
+
+	/** Seconds before the character can dodge again */
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float DodgeCooldown = 0.6f;
+
+	/** When the last dodge happened. Runtime state, not a setting, so no UPROPERTY. */
+	float LastDodgeTime = -1000.0f;
+
 public:
 
 	/** Constructor */
@@ -84,6 +99,9 @@ protected:
 
 	/** Called when the sprint input ends */
 	void SprintEnd();
+
+	/** Called when the dodge input fires */
+	void Dodge();
 
 public:
 

@@ -70,6 +70,10 @@ void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		// UE idiom: one action, two events - key down and key up drive separate functions
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ALearningUECharacter::SprintStart);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ALearningUECharacter::SprintEnd);
+
+		// Dodging
+		// only Started - a dodge is a one-shot, not something you hold
+		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &ALearningUECharacter::Dodge);
 	}
 	else
 	{
@@ -147,4 +151,33 @@ void ALearningUECharacter::SprintEnd()
 {
 	// restore the normal cap
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+}
+
+void ALearningUECharacter::Dodge()
+{
+	// a dodge is a grounded move: in the air there is no ground friction to decay
+	// the burst, and zeroing vertical velocity turns a jump into a glide
+	if (GetCharacterMovement()->IsFalling())
+	{
+		return;
+	}
+	// refuse if the cooldown has not elapsed yet
+	const float Now = GetWorld()->GetTimeSeconds();
+
+	if (Now - LastDodgeTime < DodgeCooldown)
+	{
+		return;
+	}
+	LastDodgeTime = Now;
+	// dodge where the player is steering; sidestep right when standing still
+	FVector Direction = GetLastMovementInputVector();
+
+	if (Direction.IsNearlyZero())
+	{
+		Direction = GetActorRightVector();
+	}
+
+	// UE idiom: normalise before scaling, so a half-pushed stick dodges as far as a key press
+	// the two trues override existing velocity instead of adding to it, so dodges don't compound
+	LaunchCharacter(Direction.GetSafeNormal() * DodgeImpulse, true, true);
 }
