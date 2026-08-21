@@ -27,7 +27,15 @@ not how much code you produce. Follow these rules in every session:
    developers typically use and why, then use that one.
 4. **New-term glossary.** The first time an Unreal term appears (AActor, UPROPERTY,
    GameMode, delegate, etc.), give a one-line definition. Don't re-explain terms
-   already covered in SESSION_LOG.md.
+   already covered in SESSION_LOG.md. **Cap new terms at ~3 per message.** A lesson
+   that introduces twenty terms teaches nothing, however correct it is.
+
+   **4a. Anchor every concept to Roblox Studio or web development first.** I have
+   hands-on Roblox Studio experience (Parts, WeldConstraint, Explorer/Properties
+   panel, Lua) and years of web development. Lead with the familiar thing, then name
+   the Unreal equivalent — "your Roblox WeldConstraint maps onto this, it's called a
+   socket." Abstract-first explanations do not land; mapping-first ones do. Ask a
+   comprehension question before moving to the next idea.
 5. **Exercise after each feature.** When a feature works, give me ONE small
    modification task to do myself (e.g. "add a stamina cost to the dodge — you'll
    need to touch X and Y"). Review my attempt when I ask; point at problems, don't
