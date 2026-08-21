@@ -138,10 +138,114 @@ Revisit when starting the real project, where a clean foundation is the point.
 C++ base class; the Blueprint is for tuning, and pinning a base value there is the
 trap 0.4 taught.
 
+
+---
+
+## Session 3 — 2026-08-22 — Phase 1: Enhanced Input, sprint, dodge
+
+### What exists now that I built
+
+| Thing | Where | Mine? |
+|---|---|---|
+| `IA_Sprint`, `IA_Dodge` | `Content/Input/Actions/` | **yes** |
+| Their key bindings in `IMC_Default` | Shift + L3, Left Alt + gamepad B | **yes** |
+| `SprintStart` / `SprintEnd` / `Dodge` | `LearningUECharacter.cpp` | **yes** |
+| `WalkSpeed`, `SprintSpeed`, `DodgeImpulse`, `DodgeCooldown` | `LearningUECharacter.h` | **yes** |
+| Cooldown logic | written by me, reviewed not rewritten | **yes** |
+
+### What I can explain now
+
+- **Enhanced Input is a router.** An *Input Action* is the intent ("Sprint") and knows
+  no keys. An *Input Mapping Context* holds the bindings. C++ binds to the Action, so
+  rebinding needs no recompile and one action can carry many keys. Whole control
+  schemes swap by adding/removing a context at runtime.
+- **`ETriggerEvent`.** `Started` = key down, `Completed` = key up. Sprint uses both,
+  dodge only `Started` because it is a one-shot.
+- **Input Actions are assets, not code.** Created in the Content Browser. C++ holds an
+  empty `UInputAction*`; the Blueprint points it at the asset. Forgetting that last
+  step is why correct code does nothing.
+- **`.h` vs `.cpp`.** The header says *what exists* — **every member variable, always**,
+  plus function names ending in `;`. The cpp holds the function bodies. There is no
+  such thing as putting a variable in the cpp.
+- **`UPROPERTY` or not.** `DodgeCooldown` is a setting, so it gets one and appears in
+  the Blueprint. `LastDodgeTime` is runtime bookkeeping, so it does not.
+- **Steer vs shove.** `AddMovementInput` accelerates toward a speed cap (walking).
+  `LaunchCharacter` sets velocity outright (dodge, knockback). Roblox: `Humanoid:Move`
+  vs applying an impulse to the root part.
+- **Movement modes.** `MOVE_Walking` / `MOVE_Falling` are Unreal's version of Roblox
+  `HumanoidStateType`. `LaunchCharacter` forces `MOVE_Falling`, which is why the dodge
+  plays the in-air animation.
+- **Normalise before scaling.** `GetSafeNormal()` makes a half-pushed stick dodge
+  exactly as far as a key press.
+- **Live Coding, confirmed by doing.** Worked for the `IsFalling` guard (a function
+  body). Would not have worked for the header changes or a constructor value.
+
+### Bugs I found by testing (not told to me)
+
+1. **Standing dodge plays a crouch-like pose.** Diagnosed: it is the *falling*
+   animation, because `LaunchCharacter` switches the movement mode to `MOVE_Falling`.
+   Left as-is — that mode switch is also what makes the dodge feel crisp, and the
+   Phase 3 montage replaces the pose properly.
+2. **Air dodge travelled 3-4x too far.** Fixed with an `IsFalling()` guard.
+3. **Dodging off a ledge still flies.** ← **STILL OPEN.** The guard only tests the
+   moment of the keypress; the burst then carries me off the edge into air that has no
+   friction. A guard cannot check where I will be in 200ms. The real fix is making the
+   dodge a *timed state* rather than a one-shot shove — which is what Phase 3's
+   root-motion montage gives us. Deliberately not hacked around.
+
+### Packaging: it works, and the MCP plugin broke it first
+
+The first package failed with "Unknown Cook Failure". The cook itself completed
+(`Finalisation: End`, `Done!`) but the process exited 1. The only `Error` in 1436 log
+lines was:
+
+```
+LogHttpListener: Error: HttpListener unable to bind to 127.0.0.1:8000
+```
+
+Cooking spawns a *second* Unreal process, which loaded the `ModelContextProtocol`
+plugin, which tried to open port 8000 — already held by my running editor. **Unreal
+commandlets return exit code 1 if anything logged an Error, even when the work
+succeeded.**
+
+Fix: disable the `ModelContextProtocol` plugin ("Unreal MCP" in the plugin browser)
+before packaging. Two reasons it is the right call, not a workaround:
+
+  - it owns the HTTP listener that collided
+  - its modules are `Type: Runtime`, so an MCP server would ship inside the game exe
+
+`EditorToolset` stays enabled — it declares `EditorOnly: true` and depends on
+`ToolsetRegistry`, not on MCP, so it is excluded from builds automatically. Good
+contrast in how to declare a dev-only plugin.
+
+Re-enabling MCP is one tick; UE removes the entry from the .uproject rather than
+setting Enabled false, because the plugin is not enabled by default.
+
+### Config that packaging wrote
+
+- `ProjectName=Learning UE` (was "Third Person Game Template")
+- `+MapsToCook=(FilePath="/Game/ThirdPerson/Lvl_ThirdPerson")` — only cook the map I use
+- `BuildConfiguration=PPBC_Development` — keeps logging and the console; Shipping strips
+  them, and that is for Phase 7
+
+### On the EULA warning
+
+`LogModelContextProtocol` warns that data sent through it is Epic's Licensed Technology
+and that I am responsible for my LLM provider not training on it. Checked: "Help
+improve our AI models" is **off** in my Anthropic privacy settings. Note the warning is
+narrower than the real surface — engine source read directly from disk lands in the
+conversation too, by a route the plugin never sees.
+
+### Tuning I chose
+
+Dodge on **Left Alt** rather than Q (thumb for dodge, three fingers free for WASD).
+`DodgeImpulse` raised to **2400** in the Blueprint; C++ default still 1200, so the
+Blueprint value is pinned — intended, since it is a tuning value.
+
 ### Phase progress
 
 - [x] **Phase 0 — Orientation** (0.5 cleanup optional, not done)
-- [ ] Phase 1 — Input & movement (Enhanced Input) + throwaway package
+- [x] **Phase 1 — Input & movement** (sprint, dodge, packaged .exe runs standalone)
 - [ ] Phase 2 — Stats as a component
 - [ ] Phase 3 — Melee combat
 - [ ] Phase 4 — Data-driven design
