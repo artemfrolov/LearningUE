@@ -236,6 +236,29 @@ improve our AI models" is **off** in my Anthropic privacy settings. Note the war
 narrower than the real surface — engine source read directly from disk lands in the
 conversation too, by a route the plugin never sees.
 
+### Git hazard learned the hard way
+
+`git checkout main` was run while the editor was open, onto a commit that predates
+`Content/` being tracked. Git tried to delete 849 `.uasset` files, the editor had them
+locked, and the checkout half-completed: `Source/`, `Config/`, `.uproject`,
+`.gitattributes` and `.mcp.json` were deleted from disk while `Content/` survived as
+untracked. Nothing was lost — every commit was intact — but the working tree was broken.
+
+**Rule: close the Unreal Editor before any branch operation that touches `Content/`.**
+
+Recovery, for next time. Two steps so git never has to rewrite a locked file:
+
+```
+git reset --mixed <branch>   # moves the branch pointer and rebuilds the INDEX only
+git checkout -- .            # restores only what actually differs on disk
+```
+
+`reset --mixed` touches no files, so it cannot fight the editor's locks. The surviving
+`Content/` files then match the commit, so step two has no reason to rewrite them.
+
+Also: the `!` prefix for running a shell command is a Claude Code prompt feature, not
+PowerShell syntax.
+
 ### Tuning I chose
 
 Dodge on **Left Alt** rather than Q (thumb for dodge, three fingers free for WASD).
