@@ -166,6 +166,7 @@ void ALearningUECharacter::Dodge()
 	{
 		return;
 	}
+
 	// refuse if the cooldown has not elapsed yet
 	const float Now = GetWorld()->GetTimeSeconds();
 
@@ -173,7 +174,17 @@ void ALearningUECharacter::Dodge()
 	{
 		return;
 	}
+
+	// last of the three refusals, and the only one that costs something to ask:
+	// TryConsume spends on success, so nothing below this line may fail
+	if (!Stats->TryConsumeStamina(DodgeStaminaCost))
+	{
+		return;
+	}
+
+	// the dodge is committed now - record it and go
 	LastDodgeTime = Now;
+
 	// dodge where the player is steering; sidestep right when standing still
 	FVector Direction = GetLastMovementInputVector();
 
@@ -185,4 +196,6 @@ void ALearningUECharacter::Dodge()
 	// UE idiom: normalise before scaling, so a half-pushed stick dodges as far as a key press
 	// the two trues override existing velocity instead of adding to it, so dodges don't compound
 	LaunchCharacter(Direction.GetSafeNormal() * DodgeImpulse, true, true);
+	
+
 }

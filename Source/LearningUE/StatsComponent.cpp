@@ -55,22 +55,31 @@ float UStatsComponent::GetHealthPercent() const
 	// guard the divide: a designer can and eventually will type 0 into MaxHealth
 	return MaxHealth > 0.0f ? CurrentHealth / MaxHealth : 0.0f;
 }
+
 float UStatsComponent::GetStaminaPercent() const
 {
+	// same divide guard as health
 	return MaxStamina > 0.0f ? CurrentStamina / MaxStamina : 0.0f;
 }
 
-bool UStatsComponent::TryConsumeStamina(float Amount) {
-	
+bool UStatsComponent::TryConsumeStamina(float Amount)
+{
+	// a nonsense request: a negative cost, or a corpse trying to act
 	if (Amount <= 0.0f || !IsAlive())
 	{
 		return false;
 	}
 
-	if (Amount <= CurrentStamina) {
+	// a valid request we can afford. Kept separate from the guard above because the two
+	// deserve different reactions later - this one earns a "too tired" grunt, that one
+	// is a bug.
+	if (Amount <= CurrentStamina)
+	{
+		// no Clamp needed: affordability is already proven, so this cannot go negative
 		CurrentStamina -= Amount;
 		return true;
 	}
 
+	// valid, but too expensive - refuse and spend nothing
 	return false;
 }

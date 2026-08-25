@@ -32,9 +32,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stats|Health")
 	float CurrentHealth = 0.0f;
 
+	/** Full stamina for this actor. A setting, so it is editable per actor. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
 	float MaxStamina = 100.0f;
 
+	/** Stamina right now. Runtime state, so designers may look but not set. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
 	float CurrentStamina = 0.0f;
 
@@ -72,9 +74,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stats|Stamina")
 	float GetMaxStamina() const { return MaxStamina; }
 
+	/** 0..1, ready for a progress bar in Phase 2.5 */
 	UFUNCTION(BlueprintPure, Category = "Stats|Stamina")
 	float GetStaminaPercent() const;
 
+	/**
+	 *  Spends stamina all-or-nothing: if the full Amount cannot be paid, nothing is
+	 *  spent and this returns false. Check and deduct happen in one call so no caller
+	 *  can spend without asking, or ask without spending.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Stats|Stamina")
 	bool TryConsumeStamina(float Amount);
 };

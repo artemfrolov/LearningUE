@@ -81,6 +81,10 @@ protected:
 	/** When the last dodge happened. Runtime state, not a setting, so no UPROPERTY. */
 	float LastDodgeTime = -1000.0f;
 
+	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float DodgeStaminaCost = 25.0f;
+
 public:
 
 	/** Constructor */
