@@ -35,7 +35,7 @@ class ALearningUECharacter : public ACharacter
 	/** Health, and later stamina and mana. Attached, not inherited. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStatsComponent* Stats;
-	
+
 protected:
 
 	/** Jump Input Action */
@@ -85,10 +85,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float DodgeStaminaCost = 25.0f;
 
+	/** Stamina drained per second while sprinting */
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float SprintStaminaDrainRate = 15.0f;
+
+	/** How often the drain timer fires. Same reasoning as the component's RegenInterval. */
+	float SprintDrainInterval = 0.1f;
+
+	FTimerHandle SprintDrainTimer;
+
+	/** Called by the sprint timer. Pays for one interval of sprinting. */
+	void SprintDrainTick();
+
 public:
 
 	/** Constructor */
-	ALearningUECharacter();	
+	ALearningUECharacter();
 
 protected:
 

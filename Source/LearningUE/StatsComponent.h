@@ -40,8 +40,32 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
 	float CurrentStamina = 0.0f;
 
+	/** Stamina restored per second, once the regen delay has passed. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
+	float StaminaRegenRate = 20.0f;
+
+	/** Seconds of not spending before stamina starts coming back. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
+	float StaminaRegenDelay = 1.0f;
+
+	/**
+	 *  How often the regen timer fires. Not exposed: this is a resolution knob, not a
+	 *  game design one. 10 times a second is already smoother than a player can see,
+	 *  and the rate above stays correct whatever this is set to.
+	 */
+	float RegenInterval = 0.1f;
+
+	/** When stamina was last spent. Runtime state, so no UPROPERTY. */
+	float LastStaminaSpendTime = -1000.0f;
+
+	/** The receipt for the regen timer, kept so we can stop it later. */
+	FTimerHandle StaminaRegenTimer;
+
 	/** Fill the resources once the component is live in the world */
 	virtual void BeginPlay() override;
+
+	/** Called by the timer, not by you. Adds one interval worth of stamina. */
+	void RegenerateStamina();
 
 public:
 
@@ -66,7 +90,6 @@ public:
 	/** 0..1, ready for a progress bar in Phase 2.5 */
 	UFUNCTION(BlueprintPure, Category="Stats|Health")
 	float GetHealthPercent() const;
-
 
 	UFUNCTION(BlueprintPure, Category = "Stats|Stamina")
 	float GetStamina() const { return CurrentStamina; }

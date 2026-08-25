@@ -1,6 +1,8 @@
 // Learning project - written by hand, not from the template.
 
 #include "StatsComponent.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 UStatsComponent::UStatsComponent()
 {
@@ -19,6 +21,36 @@ void UStatsComponent::BeginPlay()
 	// has been applied. By BeginPlay the real value is in place.
 	CurrentHealth = MaxHealth;
 	CurrentStamina = MaxStamina;
+
+	// UE idiom: a looping timer instead of Tick. The last argument is bLoop.
+	// This belongs in BeginPlay and not the constructor because the TimerManager
+	// lives on the World, and in the constructor there is no World yet.
+	GetWorld()->GetTimerManager().SetTimer(
+		StaminaRegenTimer,          // the receipt, so this timer can be stopped later
+		this,                       // the object the function belongs to
+		&UStatsComponent::RegenerateStamina,
+		RegenInterval,
+		true);                      // repeat forever
+}
+
+void UStatsComponent::RegenerateStamina()
+{
+	// nothing to give back to a corpse, and nothing to do on a full bar
+	if (!IsAlive() || CurrentStamina >= MaxStamina)
+	{
+		return;
+	}
+
+	// hold off until the player has stopped spending for a moment - without this,
+	// tapping sprint or dodge would refill between presses
+	if (GetWorld()->GetTimeSeconds() - LastStaminaSpendTime < StaminaRegenDelay)
+	{
+		return;
+	}
+
+	// rate is per SECOND, so one call is worth one interval of it. Same reasoning as
+	// multiplying by DeltaTime on Tick - change RegenInterval and the speed is unchanged.
+	CurrentStamina = FMath::Min(CurrentStamina + StaminaRegenRate * RegenInterval, MaxStamina);
 }
 
 float UStatsComponent::ApplyDamage(float Amount)
@@ -77,6 +109,10 @@ bool UStatsComponent::TryConsumeStamina(float Amount)
 	{
 		// no Clamp needed: affordability is already proven, so this cannot go negative
 		CurrentStamina -= Amount;
+
+		// restart the regen delay: spending is what pushes regen away
+		LastStaminaSpendTime = GetWorld()->GetTimeSeconds();
+
 		return true;
 	}
 
