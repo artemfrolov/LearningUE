@@ -32,6 +32,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stats|Health")
 	float CurrentHealth = 0.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
+	float MaxStamina = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats|Stamina")
+	float CurrentStamina = 0.0f;
+
 	/** Fill the resources once the component is live in the world */
 	virtual void BeginPlay() override;
 
@@ -58,4 +64,17 @@ public:
 	/** 0..1, ready for a progress bar in Phase 2.5 */
 	UFUNCTION(BlueprintPure, Category="Stats|Health")
 	float GetHealthPercent() const;
+
+
+	UFUNCTION(BlueprintPure, Category = "Stats|Stamina")
+	float GetStamina() const { return CurrentStamina; }
+
+	UFUNCTION(BlueprintPure, Category = "Stats|Stamina")
+	float GetMaxStamina() const { return MaxStamina; }
+
+	UFUNCTION(BlueprintPure, Category = "Stats|Stamina")
+	float GetStaminaPercent() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Stats|Stamina")
+	bool TryConsumeStamina(float Amount);
 };

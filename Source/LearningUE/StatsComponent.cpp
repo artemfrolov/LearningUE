@@ -18,6 +18,7 @@ void UStatsComponent::BeginPlay()
 	// MaxHealth still holds the C++ default, before any Blueprint or per-actor override
 	// has been applied. By BeginPlay the real value is in place.
 	CurrentHealth = MaxHealth;
+	CurrentStamina = MaxStamina;
 }
 
 float UStatsComponent::ApplyDamage(float Amount)
@@ -53,4 +54,23 @@ float UStatsComponent::GetHealthPercent() const
 {
 	// guard the divide: a designer can and eventually will type 0 into MaxHealth
 	return MaxHealth > 0.0f ? CurrentHealth / MaxHealth : 0.0f;
+}
+float UStatsComponent::GetStaminaPercent() const
+{
+	return MaxStamina > 0.0f ? CurrentStamina / MaxStamina : 0.0f;
+}
+
+bool UStatsComponent::TryConsumeStamina(float Amount) {
+	
+	if (Amount <= 0.0f || !IsAlive())
+	{
+		return false;
+	}
+
+	if (Amount <= CurrentStamina) {
+		CurrentStamina -= Amount;
+		return true;
+	}
+
+	return false;
 }
