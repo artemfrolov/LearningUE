@@ -10,6 +10,7 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UStatsComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -30,6 +31,10 @@ class ALearningUECharacter : public ACharacter
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
+
+	/** Health, and later stamina and mana. Attached, not inherited. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UStatsComponent* Stats;
 	
 protected:
 
@@ -128,5 +133,8 @@ public:
 
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Returns the Stats component **/
+	FORCEINLINE class UStatsComponent* GetStats() const { return Stats; }
 };
 
