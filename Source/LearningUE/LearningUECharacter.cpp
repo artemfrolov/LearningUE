@@ -56,6 +56,34 @@ ALearningUECharacter::ALearningUECharacter()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+void ALearningUECharacter::BeginPlay()
+{
+	// Super first: a component's BeginPlay runs inside this call, so the Stats component
+	// is fully initialised by the time the next line subscribes to it.
+	Super::BeginPlay();
+
+	// UE idiom: AddDynamic takes the listener and the function to call on it. The
+	// component never learns who subscribed - it only broadcasts.
+	Stats->OnDied.AddDynamic(this, &ALearningUECharacter::HandleDeath);
+}
+
+void ALearningUECharacter::HandleDeath()
+{
+	UE_LOG(LogLearningUE, Warning, TEXT("%s died"), *GetName());
+
+	// route through SprintEnd rather than clearing the timer here: it is still the one
+	// place that knows how to stop sprinting, and a corpse must not keep draining stamina
+	SprintEnd();
+
+	// stop the character where it stands. A real death gets a montage and a ragdoll in Phase 3.
+	GetCharacterMovement()->DisableMovement();
+}
+
+void ALearningUECharacter::DamageMe(float Amount)
+{
+	Stats->ApplyDamage(Amount);
+}
+
 void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings

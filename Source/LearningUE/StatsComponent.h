@@ -7,6 +7,14 @@
 #include "StatsComponent.generated.h"
 
 /**
+ *  Delegate signatures. These declare the SHAPE of an event, not an event itself -
+ *  one signature can be reused by several events. Dynamic = bindable from Blueprint,
+ *  Multicast = any number of listeners.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStatChanged, float, NewValue, float, MaxValue);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDied);
+
+/**
  *  Holds the gameplay resources of whatever actor it is attached to.
  *  It deliberately knows nothing about characters: attach it to a crate,
  *  a barrel or an enemy and it works the same. That is the point of a component.
@@ -20,6 +28,18 @@ public:
 
 	/** Constructor */
 	UStatsComponent();
+
+	/** Fires whenever health changes, for any reason. The HUD will listen to this. */
+	UPROPERTY(BlueprintAssignable, Category = "Stats|Events")
+	FOnStatChanged OnHealthChanged;
+
+	/** Fires whenever stamina changes, for any reason. */
+	UPROPERTY(BlueprintAssignable, Category = "Stats|Events")
+	FOnStatChanged OnStaminaChanged;
+
+	/** Fires once, the moment health reaches zero. */
+	UPROPERTY(BlueprintAssignable, Category = "Stats|Events")
+	FOnDied OnDied;
 
 protected:
 
@@ -66,6 +86,13 @@ protected:
 
 	/** Called by the timer, not by you. Adds one interval worth of stamina. */
 	void RegenerateStamina();
+
+	/**
+	 *  The ONLY things that write CurrentHealth / CurrentStamina. Every other function
+	 *  goes through these, so clamping and the broadcast cannot be forgotten at a call site.
+	 */
+	void SetHealth(float NewValue);
+	void SetStamina(float NewValue);
 
 public:
 

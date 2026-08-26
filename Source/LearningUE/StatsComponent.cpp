@@ -19,6 +19,10 @@ void UStatsComponent::BeginPlay()
 	// Start full. This belongs here and not in the constructor: at construction time
 	// MaxHealth still holds the C++ default, before any Blueprint or per-actor override
 	// has been applied. By BeginPlay the real value is in place.
+	// direct assignment, not SetHealth/SetStamina: nothing is listening yet. A component's
+	// BeginPlay runs inside its owner's Super::BeginPlay(), so a listener that binds in the
+	// owner's BeginPlay binds AFTER this line. Listeners read the starting values
+	// themselves; the events report CHANGES from here on.
 	CurrentHealth = MaxHealth;
 	CurrentStamina = MaxStamina;
 
@@ -50,7 +54,45 @@ void UStatsComponent::RegenerateStamina()
 
 	// rate is per SECOND, so one call is worth one interval of it. Same reasoning as
 	// multiplying by DeltaTime on Tick - change RegenInterval and the speed is unchanged.
-	CurrentStamina = FMath::Min(CurrentStamina + StaminaRegenRate * RegenInterval, MaxStamina);
+	SetStamina(CurrentStamina + StaminaRegenRate * RegenInterval);
+}
+
+void UStatsComponent::SetHealth(float NewValue)
+{
+	const float Clamped = FMath::Clamp(NewValue, 0.0f, MaxHealth);
+
+	// UE idiom: never compare floats with ==. This guard exists so we do not broadcast
+	// an event when nothing actually moved.
+	if (FMath::IsNearlyEqual(Clamped, CurrentHealth))
+	{
+		return;
+	}
+
+	const bool bWasAlive = IsAlive();
+	CurrentHealth = Clamped;
+
+	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+
+	// death is a crossing, not a state: only announce on the transition, so a second
+	// hit on a corpse does not fire it again
+	if (bWasAlive && !IsAlive())
+	{
+		OnDied.Broadcast();
+	}
+}
+
+void UStatsComponent::SetStamina(float NewValue)
+{
+	const float Clamped = FMath::Clamp(NewValue, 0.0f, MaxStamina);
+
+	if (FMath::IsNearlyEqual(Clamped, CurrentStamina))
+	{
+		return;
+	}
+
+	CurrentStamina = Clamped;
+
+	OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
 }
 
 float UStatsComponent::ApplyDamage(float Amount)
@@ -62,7 +104,7 @@ float UStatsComponent::ApplyDamage(float Amount)
 	}
 
 	const float Before = CurrentHealth;
-	CurrentHealth = FMath::Clamp(CurrentHealth - Amount, 0.0f, MaxHealth);
+	SetHealth(CurrentHealth - Amount);
 
 	// report what actually landed - a hit for 50 on a target with 20 left removed 20
 	return Before - CurrentHealth;
@@ -77,7 +119,7 @@ float UStatsComponent::Heal(float Amount)
 	}
 
 	const float Before = CurrentHealth;
-	CurrentHealth = FMath::Clamp(CurrentHealth + Amount, 0.0f, MaxHealth);
+	SetHealth(CurrentHealth + Amount);
 
 	return CurrentHealth - Before;
 }
@@ -107,8 +149,8 @@ bool UStatsComponent::TryConsumeStamina(float Amount)
 	// is a bug.
 	if (Amount <= CurrentStamina)
 	{
-		// no Clamp needed: affordability is already proven, so this cannot go negative
-		CurrentStamina -= Amount;
+		// affordability is already proven, so this cannot go negative
+		SetStamina(CurrentStamina - Amount);
 
 		// restart the regen delay: spending is what pushes regen away
 		LastStaminaSpendTime = GetWorld()->GetTimeSeconds();

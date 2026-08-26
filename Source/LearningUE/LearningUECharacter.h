@@ -104,8 +104,26 @@ public:
 
 protected:
 
+	/** Subscribe to the stats component's events once we are live in the world */
+	virtual void BeginPlay() override;
+
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	/**
+	 *  Runs when the Stats component announces death. UFUNCTION is mandatory: dynamic
+	 *  delegates bind by function NAME at runtime, and only UFUNCTION registers a name.
+	 */
+	UFUNCTION()
+	void HandleDeath();
+
+	/**
+	 *  Debug only: type "DamageMe 200" in the console (~) to hurt yourself.
+	 *  Exec exposes a function to the console. Nothing damages us yet, so this is
+	 *  how death gets tested before Phase 3 exists.
+	 */
+	UFUNCTION(Exec)
+	void DamageMe(float Amount);
 
 protected:
 
