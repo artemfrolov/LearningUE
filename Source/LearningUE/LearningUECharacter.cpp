@@ -11,12 +11,15 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "LearningUE.h"
+#include "StatsComponent.h"
+#include "Blueprint/UserWidget.h"
+#include "TimerManager.h"
 
 ALearningUECharacter::ALearningUECharacter()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-		
+
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -46,15 +49,65 @@ ALearningUECharacter::ALearningUECharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
+	// Create the stats component. No SetupAttachment call: a UActorComponent has no
+	// transform, so there is nothing to attach it to - it just belongs to this actor.
+	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
+
+	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character)
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void ALearningUECharacter::BeginPlay()
+{
+	// Super first: a component's BeginPlay runs inside this call, so the Stats component
+	// is fully initialised by the time the next line subscribes to it.
+	Super::BeginPlay();
+
+	// UE idiom: AddDynamic takes the listener and the function to call on it. The
+	// component never learns who subscribed - it only broadcasts.
+	Stats->OnDied.AddDynamic(this, &ALearningUECharacter::HandleDeath);
+
+	// Only the local player gets a HUD. An AI-possessed copy of this character must not
+	// draw one, and in multiplayer neither must the other players' pawns.
+	if (IsLocallyControlled() && PlayerHUDClass)
+	{
+		// created with the PlayerController as owner, which is how the widget later
+		// answers GetOwningPlayerPawn()
+		PlayerHUD = CreateWidget<UUserWidget>(GetController<APlayerController>(), PlayerHUDClass);
+
+		if (PlayerHUD)
+		{
+			PlayerHUD->AddToViewport();
+		}
+		else
+		{
+			UE_LOG(LogLearningUE, Error, TEXT("Could not create the player HUD widget."));
+		}
+	}
+}
+
+void ALearningUECharacter::HandleDeath()
+{
+	UE_LOG(LogLearningUE, Warning, TEXT("%s died"), *GetName());
+
+	// route through SprintEnd rather than clearing the timer here: it is still the one
+	// place that knows how to stop sprinting, and a corpse must not keep draining stamina
+	SprintEnd();
+
+	// stop the character where it stands. A real death gets a montage and a ragdoll in Phase 3.
+	GetCharacterMovement()->DisableMovement();
+}
+
+void ALearningUECharacter::DamageMe(float Amount)
+{
+	Stats->ApplyDamage(Amount);
 }
 
 void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
+
 		// Jumping
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
@@ -110,10 +163,10 @@ void ALearningUECharacter::DoMove(float Right, float Forward)
 		// get forward vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-		// get right vector 
+		// get right vector
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
+		// add movement
 		AddMovementInput(ForwardDirection, Forward);
 		AddMovementInput(RightDirection, Right);
 	}
@@ -143,14 +196,28 @@ void ALearningUECharacter::DoJumpEnd()
 
 void ALearningUECharacter::SprintStart()
 {
+	// asking must never be free, or Shift-mashing is a speed boost
+	if (!Stats->TryConsumeStamina(SprintStaminaDrainRate * SprintDrainInterval))
+	{
+		return;
+	}
+
 	// raise the movement component's speed cap for as long as the key is held
 	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	GetWorld()->GetTimerManager().SetTimer(
+		SprintDrainTimer,
+		this,
+		&ALearningUECharacter::SprintDrainTick,
+		SprintDrainInterval,
+		true);
+
 }
 
 void ALearningUECharacter::SprintEnd()
 {
 	// restore the normal cap
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	GetWorld()->GetTimerManager().ClearTimer(SprintDrainTimer);
 }
 
 void ALearningUECharacter::Dodge()
@@ -161,6 +228,7 @@ void ALearningUECharacter::Dodge()
 	{
 		return;
 	}
+
 	// refuse if the cooldown has not elapsed yet
 	const float Now = GetWorld()->GetTimeSeconds();
 
@@ -168,7 +236,17 @@ void ALearningUECharacter::Dodge()
 	{
 		return;
 	}
+
+	// last of the three refusals, and the only one that costs something to ask:
+	// TryConsume spends on success, so nothing below this line may fail
+	if (!Stats->TryConsumeStamina(DodgeStaminaCost))
+	{
+		return;
+	}
+
+	// the dodge is committed now - record it and go
 	LastDodgeTime = Now;
+
 	// dodge where the player is steering; sidestep right when standing still
 	FVector Direction = GetLastMovementInputVector();
 
@@ -180,4 +258,13 @@ void ALearningUECharacter::Dodge()
 	// UE idiom: normalise before scaling, so a half-pushed stick dodges as far as a key press
 	// the two trues override existing velocity instead of adding to it, so dodges don't compound
 	LaunchCharacter(Direction.GetSafeNormal() * DodgeImpulse, true, true);
+
+}
+
+void ALearningUECharacter::SprintDrainTick()
+{
+	if (!Stats->TryConsumeStamina(SprintStaminaDrainRate * SprintDrainInterval))
+	{
+		SprintEnd();
+	}
 }

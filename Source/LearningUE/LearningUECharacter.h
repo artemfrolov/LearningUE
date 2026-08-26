@@ -10,6 +10,8 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UStatsComponent;
+class UUserWidget;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -30,7 +32,11 @@ class ALearningUECharacter : public ACharacter
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
-	
+
+	/** Health, and later stamina and mana. Attached, not inherited. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UStatsComponent* Stats;
+
 protected:
 
 	/** Jump Input Action */
@@ -76,15 +82,57 @@ protected:
 	/** When the last dodge happened. Runtime state, not a setting, so no UPROPERTY. */
 	float LastDodgeTime = -1000.0f;
 
+	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float DodgeStaminaCost = 25.0f;
+
+	/** Which HUD to put on screen. Set to WBP_PlayerHUD in the Blueprint. */
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> PlayerHUDClass;
+
+	/** The live HUD instance. UPROPERTY so the garbage collector does not eat it. */
+	UPROPERTY()
+	UUserWidget* PlayerHUD;
+
+	/** Stamina drained per second while sprinting */
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float SprintStaminaDrainRate = 15.0f;
+
+	/** How often the drain timer fires. Same reasoning as the component's RegenInterval. */
+	float SprintDrainInterval = 0.1f;
+
+	FTimerHandle SprintDrainTimer;
+
+	/** Called by the sprint timer. Pays for one interval of sprinting. */
+	void SprintDrainTick();
+
 public:
 
 	/** Constructor */
-	ALearningUECharacter();	
+	ALearningUECharacter();
 
 protected:
 
+	/** Subscribe to the stats component's events once we are live in the world */
+	virtual void BeginPlay() override;
+
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	/**
+	 *  Runs when the Stats component announces death. UFUNCTION is mandatory: dynamic
+	 *  delegates bind by function NAME at runtime, and only UFUNCTION registers a name.
+	 */
+	UFUNCTION()
+	void HandleDeath();
+
+	/**
+	 *  Debug only: type "DamageMe 200" in the console (~) to hurt yourself.
+	 *  Exec exposes a function to the console. Nothing damages us yet, so this is
+	 *  how death gets tested before Phase 3 exists.
+	 */
+	UFUNCTION(Exec)
+	void DamageMe(float Amount);
 
 protected:
 
@@ -128,5 +176,8 @@ public:
 
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Returns the Stats component **/
+	FORCEINLINE class UStatsComponent* GetStats() const { return Stats; }
 };
 

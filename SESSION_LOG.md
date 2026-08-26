@@ -275,3 +275,244 @@ Blueprint value is pinned — intended, since it is a tuning value.
 - [ ] Phase 5 — Enemy AI & perception
 - [ ] Phase 6 — Where GAS fits (decision session)
 - [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
+
+---
+
+## Session 4 — 2026-08-25 — Phase 2 (part): stats as a component
+
+Branch: `phase2-stats`. Commits `ea7ce18`, `eb4033f`, `8f7f83b`, `979832b`.
+
+### 2.0 first — reading the code I actually stand on
+
+Before building anything, we read the files my game really uses. The decision that
+made it tractable: **own the 480 lines I inherit, treat `Variant_Combat`'s 3,661 as
+reference.** `ACombatCharacter` is a *sibling* sample — nothing I have inherits a line
+of it. The variants are compiled into my binary but never referenced: dead weight in
+the .exe, not dormant features waiting to be switched on.
+
+### What exists now that I built
+
+| Thing | Where | Mine? |
+|---|---|---|
+| `UStatsComponent` — health + stamina | `Source/LearningUE/StatsComponent.*` | **yes** |
+| `TryConsumeStamina` (all-or-nothing) | written by me | **yes** |
+| Stamina regen on a looping timer, with a spend delay | mentor-written, my design questions | shared |
+| Dodge costs stamina | written by me | **yes** |
+| Sprint drains stamina while held | written by me | **yes** |
+| `Stats` attached to `ALearningUECharacter` | constructor, 1 line | **yes** |
+
+Tunable in the Blueprint with no rebuild: `MaxHealth`, `MaxStamina`, `StaminaRegenRate`,
+`StaminaRegenDelay`, `DodgeStaminaCost`, `SprintStaminaDrainRate`.
+
+### What I can explain now
+
+- **Why a component and not a parent class.** `ACombatCharacter` is an `ACharacter`,
+  `ACombatDamageableBox` is an `AActor`. Nearest shared ancestor is `AActor`, which
+  Epic cannot put game stats on — so inheritance *cannot* express "these unrelated
+  things share a trait." Four copies of `CurrentHP -= Damage; if (<=0) HandleDeath();`
+  is the result. Composition attaches instead of inheriting. **`UActorComponent` is
+  Roblox's Humanoid** — you drop it in, you do not extend a base class.
+- **Why Epic wrote `ICombatDamageable` when `AActor::TakeDamage` already exists.**
+  Every actor has `TakeDamage`, so it distinguishes nothing — swing at a wall and the
+  wall "takes damage." `Cast<ICombatDamageable>` is the filter: *did this thing opt
+  into combat?* It also let them invent a signature carrying hit location and impulse.
+- **Pawn vs Controller.** Pawn = the body (Roblox Character model). Controller = the
+  driver (Roblox Player object). The controller survives death, the pawn does not —
+  which is the rule for where state goes: **health on the pawn, score on the
+  PlayerState.** Put health on the controller and you respawn at 3 HP.
+- **Contexts vs bindings.** Mapping contexts live on the PlayerController (follow the
+  human); action bindings live on the pawn (follow the body). The test: get in a car —
+  same keybinds, different meaning, because `SetupPlayerInputComponent` runs on
+  possession.
+- **Constructor vs BeginPlay.** Constructor: no world, no other actors, no local player
+  — defaults and subobjects only. BeginPlay: everything exists. `constructor()` vs
+  `componentDidMount()`. This is *why* Live Coding cannot do constructor changes — the
+  **CDO** is built once at startup and every spawn is cloned from it. A component's
+  `BeginPlay` runs *inside* its owner's `Super::BeginPlay()`.
+- **BeginPlay's boundary.** Actors and components have it. Plain `UObject`s do not —
+  they do not live in the World.
+- **Why GameMode's .cpp is empty.** `AGameModeBase` already implements spawning; what
+  it needs from me is five class *properties*. Configuration, not logic — so it lives
+  in the Blueprint. And `UCLASS(abstract)` means `GlobalDefaultGameMode` *cannot* point
+  at the C++ class.
+- **UBT scans `Source/`; the .sln is a stale bookmark list.** New files build fine but
+  stay invisible in Solution Explorer until project files are regenerated. Ctrl+click
+  still works because IntelliSense follows includes on disk. **Ritual: any file added
+  outside the editor → regenerate project files.**
+- **Tick vs Timer.** Tick when the value must be right *this frame* (movement, camera);
+  Timer when a few times a second is plenty. A timer can be stopped; a tick runs
+  forever. **DeltaTime**: per-frame changes multiply by it or they run 5x faster on a
+  144fps machine than a 30fps one — which matters, because the target machine is my
+  son's PC.
+- **Timers start where the thing starts.** Regen → `BeginPlay` (lives as long as the
+  actor). Sprint drain → `SprintStart` (exists only while the key is held). I was stuck
+  for an hour looking for a permanent home for something temporary.
+- **`SetTimer` needs a `void` function** — nobody is waiting for a return value. A
+  `bool` operation gets a small void wrapper, and the wrapper is where the result is
+  acted on.
+- **`FTimerHandle` is a plain member**, not a pointer — no `*`, no `->`. `ClearTimer`
+  on an unset handle is safe.
+- **`#include` when you call a method on a type.** `GetTimerManager()` returns a
+  reference a forward declaration covers, but `.SetTimer` needs `TimerManager.h`.
+
+### Design rules I earned rather than was told
+
+1. **Check-and-act must be one operation.** `TryConsumeStamina` returns `bool` and
+   spends only on success, so no caller can spend without asking or ask without
+   spending. TOCTOU. I chose this over `if (stamina >= cost)` myself — then reverted to
+   check-then-act in `SprintStart` and had to be caught doing it.
+2. **`Try` + `bool` in the name**, so a function that can decline says so.
+3. **Free checks first, the committing check last.** In `Dodge`: falling → cooldown →
+   stamina. Nothing below the stamina gate may fail. I got this wrong twice — first
+   `LastDodgeTime` reset on a refused dodge, then stamina was spent before the cooldown
+   check. The fix was moving one line down, not moving the gate up.
+4. **One exit path.** `SprintEnd` is the only way sprinting stops — called by the key
+   release *and* by the drain running out, so the two cannot drift apart.
+5. **Asking must never be free.** `SprintStart` pays the first interval up front;
+   otherwise Shift-mashing at low stamina is a 100ms speed boost per press.
+6. **Prove the invariant instead of clamping.** Once affordability is checked,
+   `CurrentStamina -= Amount` cannot go negative, so the `Clamp` came out. A clamp that
+   can never fire hides whether the invariant is real.
+
+### The question I asked that taught the most
+
+*Regen is 20/sec and sprint drains 15/sec — why do I run out?* Because every successful
+drain stamps `LastStaminaSpendTime`, so the 1-second regen delay never elapses while
+sprinting. Regen fires 10x/sec and bails on its first line. **Net is -15, not +5.**
+
+The delay is load-bearing: without it, any drain below the regen rate is free, and the
+two numbers fight — drain would have to exceed regen, making recovery brutally slow.
+With it, drain controls sprint duration and regen controls recovery, independently.
+
+### Deliberately not done
+
+- **The duplication.** Stamina is a near-copy of health; mana will be a third. Left
+  alone on purpose — three identical resources is the shape that becomes data
+  (**Phase 4**) or GAS Attributes (**Phase 6**). Writing it by hand is what will make
+  that decision informed instead of cargo-culted.
+- **The regen timer never stops.** It fires 10x/sec forever, even on a full bar.
+  Stopping it when full and restarting on spend is what the stored `FTimerHandle` is
+  really for. Deferred, not forgotten.
+- **`ApplyDamage` drops health to 0 and nothing happens.** Death needs the announcement
+  mechanism — that is 2.4.
+- **`IsAlive()` gates stamina.** Deliberate coupling: attach this to something with
+  `MaxHealth = 0` and it can never spend stamina either.
+
+### Phase progress
+
+- [x] **Phase 0 — Orientation**
+- [x] **Phase 1 — Input & movement** (sprint, dodge, packaged .exe runs standalone)
+- [ ] **Phase 2 — Stats as a component** — 2.0 / 2.2 / 2.3 done; **2.4 delegates** and
+      **2.5 UMG bars** remain. Right now the resources are invisible: dodge four times
+      and the fourth press silently does nothing — no bar, no sound, no reason given.
+      That is the argument for 2.5, felt rather than explained.
+- [ ] Phase 3 — Melee combat
+- [ ] Phase 4 — Data-driven design
+- [ ] Phase 5 — Enemy AI & perception
+- [ ] Phase 6 — Where GAS fits (decision session)
+- [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
+
+---
+
+## Session 5 — 2026-08-26 — Phase 2 complete: delegates and the HUD
+
+Branch: `phase2-stats`. Commits `c1c4b6a`, `21d64c9`, `2de3182`.
+
+### What exists now that I built
+
+| Thing | Where | Mine? |
+|---|---|---|
+| `OnHealthChanged` / `OnStaminaChanged` / `OnDied` | `StatsComponent.h` | mentor-written, my design summary |
+| `SetHealth` / `SetStamina` — the only writers | `StatsComponent.cpp` | mentor-written |
+| Character subscribes to `OnDied` in `BeginPlay` | `LearningUECharacter.cpp` | mentor-written |
+| `UFUNCTION(Exec) DamageMe` — console damage for testing | `LearningUECharacter.cpp` | mentor-written |
+| `UPlayerHUDWidget` — subscribes, never polls | `PlayerHUDWidget.*` | mentor-written |
+| `WBP_PlayerHUD` — two progress bars, layout and colours | `Content/UI/` | **yes, in the editor** |
+
+### What I can explain now
+
+- **Delegate = `addEventListener`.** The component broadcasts; listeners subscribe. It
+  never learns who showed up, so it stays usable on a crate. The alternative —
+  `Cast<ALearningUECharacter>(GetOwner())->HandleDeath()` — would rebuild the exact
+  coupling the whole phase removed.
+- **Multicast** = many listeners. **Dynamic** = bindable from Blueprint, slower, binds
+  by *name*. UMG is Blueprint, so the HUD events must be dynamic.
+- **A delegate declaration is a signature, not an event.** One
+  `FOnStatChanged` type, two properties (`OnHealthChanged`, `OnStaminaChanged`).
+  `BlueprintAssignable` is what makes them appear as red event nodes in Blueprint.
+- **`UFUNCTION()` is mandatory on anything passed to `AddDynamic`.** Dynamic delegates
+  resolve by name at runtime, and only `UFUNCTION` puts a function in the name table.
+  Forgetting it gives an unhelpful `FindFunctionChecked` error.
+- **One writer per field.** `SetHealth`/`SetStamina` are private and are the only code
+  that assigns. Clamping and broadcasting live there, so no call site can forget either.
+  Same family as "one exit path" from Session 4.
+- **Death is a crossing, not a state.** `SetHealth` compares `bWasAlive` before to
+  `IsAlive()` after, so hitting a corpse does not re-fire `OnDied`. Same bug family as
+  the dodge cooldown resetting on a refused dodge.
+- **Never `==` on floats.** `FMath::IsNearlyEqual`. Rounding makes exact equality a lie.
+- **Subscribers miss the opening value.** A component's `BeginPlay` runs inside its
+  owner's `Super::BeginPlay()`, so anything that binds afterwards was not listening yet.
+  The HUD reads current values once in `NativeConstruct`, then reacts to changes. Skip
+  that and the bars sit at zero until the first dodge.
+- **Push vs subscribe, read against Epic.** `CombatCharacter` calls
+  `LifeBarWidget->SetLifePercentage(CurrentHP / MaxHP)` by hand inside `TakeDamage`.
+  Works, but every future thing that changes health is a new call site to remember.
+  Mine cannot fall out of sync because nothing pushes.
+- **`BlueprintImplementableEvent`** — declared in C++, implemented in Blueprint, no
+  `.cpp` body. The mirror of "C++ says *that*, Blueprint says *how it looks*".
+- **`meta=(BindWidget)`** — a compile-time contract: the widget Blueprint must contain a
+  Progress Bar named exactly `HealthBar`, or it refuses to compile. Verified by
+  deliberately misspelling it. That is why the handler needs no null check.
+- **`FindComponentByClass<UStatsComponent>()`** — ask what an actor *has*, not what it
+  *is*. Same move as `Cast<ICombatDamageable>`. The HUD will work on any future pawn.
+- **`TSubclassOf`** = a class, not an instance. C++ says a HUD is needed, the Blueprint
+  says which one. Same shape as the `UInputAction*` pointers, same failure mode: leave
+  the dropdown empty and correct code does nothing.
+- **`NativeConstruct` / `NativeDestruct`** = UMG's BeginPlay / EndPlay. Unsubscribe in
+  the second, or a widget removed and re-added is subscribed twice.
+- **`IsLocallyControlled()`** guards HUD creation, so an AI-possessed pawn in Phase 5
+  cannot draw a HUD on my screen.
+- **`UFUNCTION(Exec)`** exposes a function to the `~` console. `DamageMe 200` is how
+  death got tested before anything could deal damage. Wrap it out of Shipping in Phase 7.
+- **DisableMovement is not disabled input.** The dead character stands in idle because
+  the anim blueprint still runs and sees speed 0. Phase 3's death montage needs both.
+
+### Red squiggles in Visual Studio are not errors
+
+**Build output is truth; IntelliSense is a guess.** Unreal breaks IntelliSense
+specifically because `.generated.h` files do not exist until **UnrealHeaderTool** runs
+at build time — and `GENERATED_BODY()` is a macro defined inside the file being
+generated. One unresolved include poisons every type below it, which is why adding a
+single line can turn a whole file red.
+
+Fix, in order: ignore it; build first and let it re-parse; close VS and delete `.vs/`
+(the regenerable 1.5 GB IntelliSense database from the Session 2 audit).
+
+UHT is also what generates the runtime name table that `AddDynamic` looks names up in —
+the macros are input to a code generator, not decoration.
+
+### Phase 2 is complete
+
+Health, stamina, spending, regeneration, events, and a HUD that cannot fall out of sync.
+
+### Still deliberately deferred
+
+- **The duplication.** Mana will be a third near-copy. Left for Phase 4 (data) / Phase 6
+  (GAS) to answer.
+- **The regen timer never stops** — 10x/sec forever, even on a full bar. What the stored
+  `FTimerHandle` is really for.
+- **`DamageMe` ships.** Strip it from Shipping builds in Phase 7.
+- **The HUD lives on the pawn, not the controller.** Conceptually the HUD belongs to the
+  human; it is created in the character's `BeginPlay` because that is where the stats
+  component is guaranteed to exist. Revisit when respawn arrives.
+
+### Phase progress
+
+- [x] **Phase 0 — Orientation**
+- [x] **Phase 1 — Input & movement**
+- [x] **Phase 2 — Stats as a component** (component, spending, regen, delegates, HUD)
+- [ ] Phase 3 — Melee combat
+- [ ] Phase 4 — Data-driven design
+- [ ] Phase 5 — Enemy AI & perception
+- [ ] Phase 6 — Where GAS fits (decision session)
+- [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
