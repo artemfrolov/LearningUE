@@ -411,3 +411,108 @@ With it, drain controls sprint duration and regen controls recovery, independent
 - [ ] Phase 5 — Enemy AI & perception
 - [ ] Phase 6 — Where GAS fits (decision session)
 - [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
+
+---
+
+## Session 5 — 2026-08-26 — Phase 2 complete: delegates and the HUD
+
+Branch: `phase2-stats`. Commits `c1c4b6a`, `21d64c9`, `2de3182`.
+
+### What exists now that I built
+
+| Thing | Where | Mine? |
+|---|---|---|
+| `OnHealthChanged` / `OnStaminaChanged` / `OnDied` | `StatsComponent.h` | mentor-written, my design summary |
+| `SetHealth` / `SetStamina` — the only writers | `StatsComponent.cpp` | mentor-written |
+| Character subscribes to `OnDied` in `BeginPlay` | `LearningUECharacter.cpp` | mentor-written |
+| `UFUNCTION(Exec) DamageMe` — console damage for testing | `LearningUECharacter.cpp` | mentor-written |
+| `UPlayerHUDWidget` — subscribes, never polls | `PlayerHUDWidget.*` | mentor-written |
+| `WBP_PlayerHUD` — two progress bars, layout and colours | `Content/UI/` | **yes, in the editor** |
+
+### What I can explain now
+
+- **Delegate = `addEventListener`.** The component broadcasts; listeners subscribe. It
+  never learns who showed up, so it stays usable on a crate. The alternative —
+  `Cast<ALearningUECharacter>(GetOwner())->HandleDeath()` — would rebuild the exact
+  coupling the whole phase removed.
+- **Multicast** = many listeners. **Dynamic** = bindable from Blueprint, slower, binds
+  by *name*. UMG is Blueprint, so the HUD events must be dynamic.
+- **A delegate declaration is a signature, not an event.** One
+  `FOnStatChanged` type, two properties (`OnHealthChanged`, `OnStaminaChanged`).
+  `BlueprintAssignable` is what makes them appear as red event nodes in Blueprint.
+- **`UFUNCTION()` is mandatory on anything passed to `AddDynamic`.** Dynamic delegates
+  resolve by name at runtime, and only `UFUNCTION` puts a function in the name table.
+  Forgetting it gives an unhelpful `FindFunctionChecked` error.
+- **One writer per field.** `SetHealth`/`SetStamina` are private and are the only code
+  that assigns. Clamping and broadcasting live there, so no call site can forget either.
+  Same family as "one exit path" from Session 4.
+- **Death is a crossing, not a state.** `SetHealth` compares `bWasAlive` before to
+  `IsAlive()` after, so hitting a corpse does not re-fire `OnDied`. Same bug family as
+  the dodge cooldown resetting on a refused dodge.
+- **Never `==` on floats.** `FMath::IsNearlyEqual`. Rounding makes exact equality a lie.
+- **Subscribers miss the opening value.** A component's `BeginPlay` runs inside its
+  owner's `Super::BeginPlay()`, so anything that binds afterwards was not listening yet.
+  The HUD reads current values once in `NativeConstruct`, then reacts to changes. Skip
+  that and the bars sit at zero until the first dodge.
+- **Push vs subscribe, read against Epic.** `CombatCharacter` calls
+  `LifeBarWidget->SetLifePercentage(CurrentHP / MaxHP)` by hand inside `TakeDamage`.
+  Works, but every future thing that changes health is a new call site to remember.
+  Mine cannot fall out of sync because nothing pushes.
+- **`BlueprintImplementableEvent`** — declared in C++, implemented in Blueprint, no
+  `.cpp` body. The mirror of "C++ says *that*, Blueprint says *how it looks*".
+- **`meta=(BindWidget)`** — a compile-time contract: the widget Blueprint must contain a
+  Progress Bar named exactly `HealthBar`, or it refuses to compile. Verified by
+  deliberately misspelling it. That is why the handler needs no null check.
+- **`FindComponentByClass<UStatsComponent>()`** — ask what an actor *has*, not what it
+  *is*. Same move as `Cast<ICombatDamageable>`. The HUD will work on any future pawn.
+- **`TSubclassOf`** = a class, not an instance. C++ says a HUD is needed, the Blueprint
+  says which one. Same shape as the `UInputAction*` pointers, same failure mode: leave
+  the dropdown empty and correct code does nothing.
+- **`NativeConstruct` / `NativeDestruct`** = UMG's BeginPlay / EndPlay. Unsubscribe in
+  the second, or a widget removed and re-added is subscribed twice.
+- **`IsLocallyControlled()`** guards HUD creation, so an AI-possessed pawn in Phase 5
+  cannot draw a HUD on my screen.
+- **`UFUNCTION(Exec)`** exposes a function to the `~` console. `DamageMe 200` is how
+  death got tested before anything could deal damage. Wrap it out of Shipping in Phase 7.
+- **DisableMovement is not disabled input.** The dead character stands in idle because
+  the anim blueprint still runs and sees speed 0. Phase 3's death montage needs both.
+
+### Red squiggles in Visual Studio are not errors
+
+**Build output is truth; IntelliSense is a guess.** Unreal breaks IntelliSense
+specifically because `.generated.h` files do not exist until **UnrealHeaderTool** runs
+at build time — and `GENERATED_BODY()` is a macro defined inside the file being
+generated. One unresolved include poisons every type below it, which is why adding a
+single line can turn a whole file red.
+
+Fix, in order: ignore it; build first and let it re-parse; close VS and delete `.vs/`
+(the regenerable 1.5 GB IntelliSense database from the Session 2 audit).
+
+UHT is also what generates the runtime name table that `AddDynamic` looks names up in —
+the macros are input to a code generator, not decoration.
+
+### Phase 2 is complete
+
+Health, stamina, spending, regeneration, events, and a HUD that cannot fall out of sync.
+
+### Still deliberately deferred
+
+- **The duplication.** Mana will be a third near-copy. Left for Phase 4 (data) / Phase 6
+  (GAS) to answer.
+- **The regen timer never stops** — 10x/sec forever, even on a full bar. What the stored
+  `FTimerHandle` is really for.
+- **`DamageMe` ships.** Strip it from Shipping builds in Phase 7.
+- **The HUD lives on the pawn, not the controller.** Conceptually the HUD belongs to the
+  human; it is created in the character's `BeginPlay` because that is where the stats
+  component is guaranteed to exist. Revisit when respawn arrives.
+
+### Phase progress
+
+- [x] **Phase 0 — Orientation**
+- [x] **Phase 1 — Input & movement**
+- [x] **Phase 2 — Stats as a component** (component, spending, regen, delegates, HUD)
+- [ ] Phase 3 — Melee combat
+- [ ] Phase 4 — Data-driven design
+- [ ] Phase 5 — Enemy AI & perception
+- [ ] Phase 6 — Where GAS fits (decision session)
+- [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
