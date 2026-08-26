@@ -11,6 +11,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 class UStatsComponent;
+class UUserWidget;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -84,6 +85,14 @@ protected:
 	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float DodgeStaminaCost = 25.0f;
+
+	/** Which HUD to put on screen. Set to WBP_PlayerHUD in the Blueprint. */
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> PlayerHUDClass;
+
+	/** The live HUD instance. UPROPERTY so the garbage collector does not eat it. */
+	UPROPERTY()
+	UUserWidget* PlayerHUD;
 
 	/** Stamina drained per second while sprinting */
 	UPROPERTY(EditAnywhere, Category = "Movement")

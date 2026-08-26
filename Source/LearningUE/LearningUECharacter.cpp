@@ -12,6 +12,7 @@
 #include "InputActionValue.h"
 #include "LearningUE.h"
 #include "StatsComponent.h"
+#include "Blueprint/UserWidget.h"
 #include "TimerManager.h"
 
 ALearningUECharacter::ALearningUECharacter()
@@ -65,6 +66,24 @@ void ALearningUECharacter::BeginPlay()
 	// UE idiom: AddDynamic takes the listener and the function to call on it. The
 	// component never learns who subscribed - it only broadcasts.
 	Stats->OnDied.AddDynamic(this, &ALearningUECharacter::HandleDeath);
+
+	// Only the local player gets a HUD. An AI-possessed copy of this character must not
+	// draw one, and in multiplayer neither must the other players' pawns.
+	if (IsLocallyControlled() && PlayerHUDClass)
+	{
+		// created with the PlayerController as owner, which is how the widget later
+		// answers GetOwningPlayerPawn()
+		PlayerHUD = CreateWidget<UUserWidget>(GetController<APlayerController>(), PlayerHUDClass);
+
+		if (PlayerHUD)
+		{
+			PlayerHUD->AddToViewport();
+		}
+		else
+		{
+			UE_LOG(LogLearningUE, Error, TEXT("Could not create the player HUD widget."));
+		}
+	}
 }
 
 void ALearningUECharacter::HandleDeath()
