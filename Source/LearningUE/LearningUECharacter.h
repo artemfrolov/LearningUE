@@ -76,6 +76,30 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Combat")
 	UAnimMontage* LightAttackMontage;
 
+	/**
+	 *  Turn to face the camera when an attack starts. The character normally faces where
+	 *  it is RUNNING, not where you are LOOKING, so standing still it swings wherever it
+	 *  last moved. Off = the old-school behaviour, for comparison.
+	 */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	bool bFaceCameraOnAttack = true;
+
+	/** Damage a light attack deals on a clean hit */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float LightAttackDamage = 25.0f;
+
+	/** How far in front of the fist the blow reaches, in cm */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float AttackTraceDistance = 75.0f;
+
+	/** How wide the blow is, in cm. Forgiveness: bigger means easier to land. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float AttackTraceRadius = 40.0f;
+
+	/** Draw the trace shape in the world. Turn off before packaging. */
+	UPROPERTY(EditAnywhere, Category="Combat|Debug")
+	bool bShowAttackTrace = true;
+
 	/** Dodge Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DodgeAction;
@@ -93,6 +117,15 @@ protected:
 
 	/** True from the moment an attack montage starts until it ends. Runtime state. */
 	bool bIsAttacking = false;
+
+	/**
+	 *  Who this swing has already hit. Cleared when an attack starts, not when a trace
+	 *  runs - a heavy attack in 3.7 will have two notifies in one montage, and the second
+	 *  trace must not re-hit whoever the first one caught.
+	 *  UPROPERTY so the garbage collector keeps these entries honest.
+	 */
+	UPROPERTY()
+	TSet<AActor*> HitActorsThisSwing;
 
 	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
 	UPROPERTY(EditAnywhere, Category = "Movement")
@@ -174,6 +207,13 @@ protected:
 	void Attack();
 
 public:
+
+	/**
+	 *  Sweeps for targets in front of the given bone. Called by the Attack Hit anim
+	 *  notify at the frame the blow lands - never on a schedule, and never by the
+	 *  input code, because only the animation knows when the fist is actually out there.
+	 */
+	void DoAttackTrace(FName BoneName);
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")

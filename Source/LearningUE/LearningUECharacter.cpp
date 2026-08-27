@@ -15,6 +15,8 @@
 #include "Blueprint/UserWidget.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
 #include "TimerManager.h"
 
 ALearningUECharacter::ALearningUECharacter()
@@ -238,6 +240,78 @@ void ALearningUECharacter::SprintEnd()
 	GetWorld()->GetTimerManager().ClearTimer(SprintDrainTimer);
 }
 
+void ALearningUECharacter::DoAttackTrace(FName BoneName)
+{
+	// start at the fist, reach forward. Note the direction comes from the CHARACTER, not
+	// from the fist's motion - the same simplification Epic made. Predictable and cheap;
+	// the cost is that a target directly beside you during a wide swing can be missed.
+	const FVector TraceStart = GetMesh()->GetSocketLocation(BoneName);
+	const FVector TraceEnd = TraceStart + (GetActorForwardVector() * AttackTraceDistance);
+
+	// which KINDS of thing can be punched. Pawn covers characters; WorldDynamic covers
+	// movable props like a training dummy or a crate. Static world geometry is absent on
+	// purpose - punching a wall should find nothing.
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+	// a sphere dragged from start to end, rather than a hairline ray - a thin ray between
+	// two frames of a fast animation slips straight through people
+	const FCollisionShape Sphere = FCollisionShape::MakeSphere(AttackTraceRadius);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	TArray<FHitResult> Hits;
+	GetWorld()->SweepMultiByObjectType(Hits, TraceStart, TraceEnd, FQuat::Identity, ObjectParams, Sphere, QueryParams);
+
+	if (bShowAttackTrace)
+	{
+		// Draw what is actually tested: a sweep is one continuous CAPSULE, not two
+		// separate spheres. Half height covers the travel plus a radius at each cap.
+		const FVector Direction = (TraceEnd - TraceStart).GetSafeNormal();
+		const FVector Centre = (TraceStart + TraceEnd) * 0.5f;
+		const float HalfHeight = (AttackTraceDistance * 0.5f) + AttackTraceRadius;
+
+		// MakeFromZ because a capsule's axis is its local Z
+		const FQuat Orientation = FRotationMatrix::MakeFromZ(Direction).ToQuat();
+
+		// 2 seconds so it can be studied after the swing is over
+		DrawDebugCapsule(GetWorld(), Centre, HalfHeight, AttackTraceRadius, Orientation, FColor::Yellow, false, 2.0f);
+	}
+
+	for (const FHitResult& Hit : Hits)
+	{
+		AActor* HitActor = Hit.GetActor();
+
+		if (!HitActor)
+		{
+			continue;
+		}
+
+		// one sweep can report the same actor once per component it touched, so without
+		// this a two-collider dummy takes double damage from a single punch
+		if (HitActorsThisSwing.Contains(HitActor))
+		{
+			continue;
+		}
+
+		// ask what it HAS, not what it IS - anything carrying stats can be hurt,
+		// anything else is scenery
+		UStatsComponent* HitStats = HitActor->FindComponentByClass<UStatsComponent>();
+
+		if (!HitStats)
+		{
+			continue;
+		}
+
+		HitActorsThisSwing.Add(HitActor);
+		HitStats->ApplyDamage(LightAttackDamage);
+
+		UE_LOG(LogLearningUE, Warning, TEXT("Punch connected with %s"), *GetNameSafe(HitActor));
+	}
+}
+
 void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	// this fires for EVERY montage, so ignore the ones we do not care about. Right now
@@ -272,6 +346,21 @@ void ALearningUECharacter::Attack()
 	// committed now: stop sprinting, since the drain timer has no other reason to stop
 	SprintEnd();
 	bIsAttacking = true;
+
+	// fresh swing, so nobody has been hit by it yet
+	HitActorsThisSwing.Reset();
+
+	// Aim the attack where the player is looking. Yaw only - copying the camera's pitch
+	// would tip the character over when you look up. Done after the montage is confirmed
+	// so a failed attack never turns you, and before root motion moves anything this
+	// frame, so the step forward goes the new way.
+	if (bFaceCameraOnAttack)
+	{
+		if (const AController* OwningController = GetController())
+		{
+			SetActorRotation(FRotator(0.0f, OwningController->GetControlRotation().Yaw, 0.0f));
+		}
+	}
 }
 
 void ALearningUECharacter::Dodge()
