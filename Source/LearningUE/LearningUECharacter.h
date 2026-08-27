@@ -12,6 +12,7 @@ class UCameraComponent;
 class UInputAction;
 class UStatsComponent;
 class UUserWidget;
+class UAnimMontage;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -67,6 +68,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Movement")
 	float SprintSpeed = 900.0f;
 
+	/** Attack Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* AttackAction;
+
+	/** The light attack animation. Set to AM_LightAttack in the Blueprint. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	UAnimMontage* LightAttackMontage;
+
 	/** Dodge Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DodgeAction;
@@ -81,6 +90,9 @@ protected:
 
 	/** When the last dodge happened. Runtime state, not a setting, so no UPROPERTY. */
 	float LastDodgeTime = -1000.0f;
+
+	/** True from the moment an attack montage starts until it ends. Runtime state. */
+	bool bIsAttacking = false;
 
 	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
 	UPROPERTY(EditAnywhere, Category = "Movement")
@@ -127,6 +139,13 @@ protected:
 	void HandleDeath();
 
 	/**
+	 *  Runs when ANY montage on this character finishes - so it must check which one.
+	 *  bInterrupted is true when the montage was cut short rather than played to the end.
+	 */
+	UFUNCTION()
+	void HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	/**
 	 *  Debug only: type "DamageMe 200" in the console (~) to hurt yourself.
 	 *  Exec exposes a function to the console. Nothing damages us yet, so this is
 	 *  how death gets tested before Phase 3 exists.
@@ -150,6 +169,9 @@ protected:
 
 	/** Called when the dodge input fires */
 	void Dodge();
+
+	/** Called when the attack input fires */
+	void Attack();
 
 public:
 

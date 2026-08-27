@@ -13,6 +13,8 @@
 #include "LearningUE.h"
 #include "StatsComponent.h"
 #include "Blueprint/UserWidget.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "TimerManager.h"
 
 ALearningUECharacter::ALearningUECharacter()
@@ -66,6 +68,13 @@ void ALearningUECharacter::BeginPlay()
 	// UE idiom: AddDynamic takes the listener and the function to call on it. The
 	// component never learns who subscribed - it only broadcasts.
 	Stats->OnDied.AddDynamic(this, &ALearningUECharacter::HandleDeath);
+
+	// The AnimInstance is the running instance of the Anim Blueprint on our mesh.
+	// It announces when any montage finishes; that is how an attack learns it is over.
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		AnimInstance->OnMontageEnded.AddDynamic(this, &ALearningUECharacter::HandleMontageEnded);
+	}
 
 	// Only the local player gets a HUD. An AI-possessed copy of this character must not
 	// draw one, and in multiplayer neither must the other players' pawns.
@@ -127,6 +136,9 @@ void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		// Dodging
 		// only Started - a dodge is a one-shot, not something you hold
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &ALearningUECharacter::Dodge);
+
+		// Attacking
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ALearningUECharacter::Attack);
 	}
 	else
 	{
@@ -196,6 +208,13 @@ void ALearningUECharacter::DoJumpEnd()
 
 void ALearningUECharacter::SprintStart()
 {
+	// no sprinting out of an attack - attacking is a commitment. Free check, so it goes
+	// above the one that spends stamina.
+	if (bIsAttacking)
+	{
+		return;
+	}
+
 	// asking must never be free, or Shift-mashing is a speed boost
 	if (!Stats->TryConsumeStamina(SprintStaminaDrainRate * SprintDrainInterval))
 	{
@@ -210,7 +229,6 @@ void ALearningUECharacter::SprintStart()
 		&ALearningUECharacter::SprintDrainTick,
 		SprintDrainInterval,
 		true);
-
 }
 
 void ALearningUECharacter::SprintEnd()
@@ -218,6 +236,42 @@ void ALearningUECharacter::SprintEnd()
 	// restore the normal cap
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	GetWorld()->GetTimerManager().ClearTimer(SprintDrainTimer);
+}
+
+void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	// this fires for EVERY montage, so ignore the ones we do not care about. Right now
+	// there is only one, but the death and dodge montages are coming in 3.6 and 3.8.
+	if (Montage != LightAttackMontage)
+	{
+		return;
+	}
+
+	// the attack is over whether it finished cleanly or was interrupted - either way we
+	// are no longer attacking, so the flag clears in both cases
+	bIsAttacking = false;
+}
+
+void ALearningUECharacter::Attack()
+{
+	// one attack at a time: without this, every click restarts the montage from frame zero
+	if (bIsAttacking)
+	{
+		return;
+	}
+
+	// UE idiom: ACharacter::PlayAnimMontage finds the mesh's AnimInstance for us and
+	// returns the montage's DURATION - zero means it never started (montage unset, no
+	// AnimInstance). The montage only reaches the screen because the Anim Blueprint has
+	// a Slot 'DefaultSlot' node.
+	if (PlayAnimMontage(LightAttackMontage) <= 0.0f)
+	{
+		return;
+	}
+
+	// committed now: stop sprinting, since the drain timer has no other reason to stop
+	SprintEnd();
+	bIsAttacking = true;
 }
 
 void ALearningUECharacter::Dodge()
@@ -258,7 +312,6 @@ void ALearningUECharacter::Dodge()
 	// UE idiom: normalise before scaling, so a half-pushed stick dodges as far as a key press
 	// the two trues override existing velocity instead of adding to it, so dodges don't compound
 	LaunchCharacter(Direction.GetSafeNormal() * DodgeImpulse, true, true);
-
 }
 
 void ALearningUECharacter::SprintDrainTick()
