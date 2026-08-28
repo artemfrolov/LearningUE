@@ -97,7 +97,7 @@ void ALearningUECharacter::BeginPlay()
 	}
 }
 
-void ALearningUECharacter::HandleDeath()
+void ALearningUECharacter::HandleDeath(AActor* Killer)
 {
 	UE_LOG(LogLearningUE, Warning, TEXT("%s died"), *GetName());
 

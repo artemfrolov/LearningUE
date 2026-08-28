@@ -57,7 +57,7 @@ void UStatsComponent::RegenerateStamina()
 	SetStamina(CurrentStamina + StaminaRegenRate * RegenInterval);
 }
 
-void UStatsComponent::SetHealth(float NewValue)
+void UStatsComponent::SetHealth(float NewValue, AActor* Causer)
 {
 	const float Clamped = FMath::Clamp(NewValue, 0.0f, MaxHealth);
 
@@ -77,7 +77,9 @@ void UStatsComponent::SetHealth(float NewValue)
 	// hit on a corpse does not fire it again
 	if (bWasAlive && !IsAlive())
 	{
-		OnDied.Broadcast();
+		// the killer rides along so listeners can react directionally - a death
+		// animation needs to know which way the blow came from
+		OnDied.Broadcast(Causer);
 	}
 }
 
@@ -104,7 +106,7 @@ float UStatsComponent::ApplyDamage(float Amount, AActor* Causer)
 	}
 
 	const float Before = CurrentHealth;
-	SetHealth(CurrentHealth - Amount);
+	SetHealth(CurrentHealth - Amount, Causer);
 
 	// what actually landed - a hit for 50 on a target with 20 left removed 20
 	const float Dealt = Before - CurrentHealth;

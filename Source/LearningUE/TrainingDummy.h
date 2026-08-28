@@ -49,5 +49,5 @@ protected:
 
 	/** Removes the dummy from the world */
 	UFUNCTION()
-	void HandleDeath();
+	void HandleDeath(AActor* Killer);
 };

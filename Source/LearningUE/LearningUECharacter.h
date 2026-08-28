@@ -169,7 +169,7 @@ protected:
 	 *  delegates bind by function NAME at runtime, and only UFUNCTION registers a name.
 	 */
 	UFUNCTION()
-	void HandleDeath();
+	void HandleDeath(AActor* Killer);
 
 	/**
 	 *  Runs when ANY montage on this character finishes - so it must check which one.

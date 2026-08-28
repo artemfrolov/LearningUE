@@ -6,6 +6,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "LearningUE.h"
 #include "StatsComponent.h"
+#include "TimerManager.h"
 
 AEnemyCharacter::AEnemyCharacter()
 {
@@ -77,11 +78,70 @@ void AEnemyCharacter::HandleHealthChanged(float NewValue, float MaxValue)
 	UE_LOG(LogLearningUE, Warning, TEXT("%s: %.0f / %.0f"), *GetName(), NewValue, MaxValue);
 }
 
-void AEnemyCharacter::HandleDeath()
+UAnimMontage* AEnemyCharacter::SelectDeathMontage(AActor* Killer) const
+{
+	// nobody to measure against: a fall, a scripted kill, damage from no actor at all
+	if (!Killer)
+	{
+		return DeathMontageFront;
+	}
+
+	// Direction from me to whoever killed me. Normal2D flattens Z, so an attacker
+	// standing on a ledge above me still reads as "in front", not "overhead".
+	const FVector ToKiller = (Killer->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+
+	// UE idiom: the dot product of two unit vectors is how much they agree.
+	// +1 exactly the same way, 0 perpendicular, -1 exactly opposite.
+	const float ForwardDot = FVector::DotProduct(GetActorForwardVector(), ToKiller);
+	const float RightDot = FVector::DotProduct(GetActorRightVector(), ToKiller);
+
+	// Bigger magnitude wins the axis - was this more of a front/back hit or a side one?
+	// Then the sign picks the end of that axis.
+	if (FMath::Abs(ForwardDot) >= FMath::Abs(RightDot))
+	{
+		return ForwardDot >= 0.0f ? DeathMontageFront : DeathMontageBack;
+	}
+
+	return RightDot >= 0.0f ? DeathMontageRight : DeathMontageLeft;
+}
+
+void AEnemyCharacter::StartRagdoll()
+{
+	// "Ragdoll" is a stock collision profile: the mesh stops being a query-only shape
+	// and starts colliding with the world as physics bodies.
+	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+
+	// hands the skeleton to the physics asset (PA_Mannequin). From here the animation
+	// system no longer drives the bones - gravity and collisions do.
+	GetMesh()->SetSimulatePhysics(true);
+}
+
+void AEnemyCharacter::HandleDeath(AActor* Killer)
 {
 	UE_LOG(LogLearningUE, Warning, TEXT("%s died"), *GetName());
 
-	// placeholder, same as the training dummy. 3.6c replaces this with a death montage
-	// and stops the body vanishing mid-air.
-	Destroy();
+	// a corpse should neither walk nor be walked into
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	const float Duration = PlayAnimMontage(SelectDeathMontage(Killer));
+
+	if (Duration > 0.0f)
+	{
+		// A timer, not an event - and for once that is the right call. The death montages
+		// have Auto Blend Out switched off so they hold their final pose, which means
+		// they never "end" and OnMontageEnded never fires. With no event to listen to,
+		// the montage's own duration is the only signal available.
+		GetWorldTimerManager().SetTimer(RagdollTimer, this, &AEnemyCharacter::StartRagdoll, Duration, false);
+	}
+	else
+	{
+		// no montage played, so go straight to physics rather than freezing upright
+		StartRagdoll();
+	}
+
+	// UE idiom: SetLifeSpan destroys the actor after N seconds, with no timer to own or
+	// clear. The ragdoll gets CorpseLingerTime to settle before the body is removed.
+	SetLifeSpan(Duration + CorpseLingerTime);
 }

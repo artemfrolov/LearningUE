@@ -12,7 +12,7 @@
  *  Multicast = any number of listeners.
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStatChanged, float, NewValue, float, MaxValue);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDied);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDied, AActor*, Killer);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamaged, float, Amount, AActor*, Causer);
 
 /**
@@ -99,7 +99,7 @@ protected:
 	 *  The ONLY things that write CurrentHealth / CurrentStamina. Every other function
 	 *  goes through these, so clamping and the broadcast cannot be forgotten at a call site.
 	 */
-	void SetHealth(float NewValue);
+	void SetHealth(float NewValue, AActor* Causer = nullptr);
 	void SetStamina(float NewValue);
 
 public:

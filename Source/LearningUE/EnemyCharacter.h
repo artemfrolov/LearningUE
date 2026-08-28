@@ -47,6 +47,32 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float HitKnockbackImpulse = 400.0f;
 
+	/** Death animations, one per direction the killing blow came from. */
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	UAnimMontage* DeathMontageFront;
+
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	UAnimMontage* DeathMontageBack;
+
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	UAnimMontage* DeathMontageLeft;
+
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	UAnimMontage* DeathMontageRight;
+
+	/** Seconds the body stays on the ground after the death animation finishes */
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	float CorpseLingerTime = 3.0f;
+
+	/** Fires when the death animation is done, to hand the body over to physics */
+	FTimerHandle RagdollTimer;
+
+	/** Stops animating the skeleton and lets physics own it */
+	void StartRagdoll();
+
+	/** Picks which of the four death animations matches where the killer was standing. */
+	UAnimMontage* SelectDeathMontage(AActor* Killer) const;
+
 	/** Subscribe to the stats events */
 	virtual void BeginPlay() override;
 
@@ -58,9 +84,9 @@ protected:
 	UFUNCTION()
 	void HandleHealthChanged(float NewValue, float MaxValue);
 
-	/** What happens when health reaches zero. Gets a montage in 3.6c. */
+	/** Stops the body, plays a death animation, and schedules cleanup */
 	UFUNCTION()
-	void HandleDeath();
+	void HandleDeath(AActor* Killer);
 
 public:
 

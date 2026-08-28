@@ -38,7 +38,7 @@ void ATrainingDummy::HandleHealthChanged(float NewValue, float MaxValue)
 	UE_LOG(LogLearningUE, Warning, TEXT("%s: %.0f / %.0f"), *GetName(), NewValue, MaxValue);
 }
 
-void ATrainingDummy::HandleDeath()
+void ATrainingDummy::HandleDeath(AActor* Killer)
 {
 	UE_LOG(LogLearningUE, Warning, TEXT("%s destroyed"), *GetName());
 
