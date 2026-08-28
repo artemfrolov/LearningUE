@@ -95,7 +95,7 @@ void UStatsComponent::SetStamina(float NewValue)
 	OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
 }
 
-float UStatsComponent::ApplyDamage(float Amount)
+float UStatsComponent::ApplyDamage(float Amount, AActor* Causer)
 {
 	// ignore healing-by-negative-damage and hits on something already dead
 	if (Amount <= 0.0f || !IsAlive())
@@ -106,8 +106,15 @@ float UStatsComponent::ApplyDamage(float Amount)
 	const float Before = CurrentHealth;
 	SetHealth(CurrentHealth - Amount);
 
-	// report what actually landed - a hit for 50 on a target with 20 left removed 20
-	return Before - CurrentHealth;
+	// what actually landed - a hit for 50 on a target with 20 left removed 20
+	const float Dealt = Before - CurrentHealth;
+
+	if (Dealt > 0.0f)
+	{
+		OnDamaged.Broadcast(Dealt, Causer);
+	}
+
+	return Dealt;
 }
 
 float UStatsComponent::Heal(float Amount)

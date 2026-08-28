@@ -306,7 +306,8 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 		}
 
 		HitActorsThisSwing.Add(HitActor);
-		HitStats->ApplyDamage(LightAttackDamage);
+		// pass ourselves as the causer so the victim can work out which way it was hit
+		HitStats->ApplyDamage(LightAttackDamage, this);
 
 		UE_LOG(LogLearningUE, Warning, TEXT("Punch connected with %s"), *GetNameSafe(HitActor));
 	}
