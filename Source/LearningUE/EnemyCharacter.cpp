@@ -111,6 +111,9 @@ void AEnemyCharacter::StartRagdoll()
 	// and starts colliding with the world as physics bodies.
 	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
 
+	// setting a profile replaces every response, so the camera exemption goes back on
+	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+
 	// hands the skeleton to the physics asset (PA_Mannequin). From here the animation
 	// system no longer drives the bones - gravity and collisions do.
 	GetMesh()->SetSimulatePhysics(true);
@@ -124,6 +127,11 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// A corpse must not shove the player's camera about. The spring arm traces on the
+	// Camera channel every frame and pulls in when something blocks it, so a body you
+	// just walked into springs the camera to your shoulders.
+	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	const float Duration = PlayAnimMontage(SelectDeathMontage(Killer));
 
