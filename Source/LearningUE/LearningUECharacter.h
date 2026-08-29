@@ -138,9 +138,24 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DodgeAction;
 
-	/** Speed of the dodge burst, in cm/s. Decays through the movement component's braking. */
+	/**
+	 *  The dodge animation. Carries root motion, so the ANIMATION moves the character
+	 *  rather than a velocity impulse - which is what stops a dodge sailing off a ledge.
+	 *  Set to AM_Dodge in the Blueprint.
+	 */
 	UPROPERTY(EditAnywhere, Category="Movement")
-	float DodgeImpulse = 1200.0f;
+	UAnimMontage* DodgeMontage;
+
+	/**
+	 *  Multiplier on how far the dodge montage's root motion carries us. MM_Dash is a
+	 *  long leap; a dodge is a short hop. Scaling the motion is cheaper than finding a
+	 *  new animation, and the distance is tunable while playing.
+	 */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float DodgeRootMotionScale = 0.35f;
+
+	/** True from the moment the dodge montage starts until it ends. Runtime state. */
+	bool bIsDodging = false;
 
 	/** Seconds before the character can dodge again */
 	UPROPERTY(EditAnywhere, Category = "Movement")
@@ -218,6 +233,13 @@ protected:
 	 */
 	UFUNCTION()
 	void HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	/** How much the debug self-damage key deals */
+	UPROPERTY(EditAnywhere, Category="Combat|Debug")
+	float DebugSelfDamage = 10.0f;
+
+	/** Bound to a raw key press, not an Input Action. Debug builds only. */
+	void DebugDamageSelf();
 
 	/**
 	 *  Debug only: type "DamageMe 200" in the console (~) to hurt yourself.

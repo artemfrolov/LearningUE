@@ -137,6 +137,11 @@ void ALearningUECharacter::HandleDamaged(float Amount, AActor* Causer)
 	}
 }
 
+void ALearningUECharacter::DebugDamageSelf()
+{
+	Stats->ApplyDamage(DebugSelfDamage);
+}
+
 void ALearningUECharacter::DamageMe(float Amount)
 {
 	Stats->ApplyDamage(Amount);
@@ -166,6 +171,13 @@ void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		// Dodging
 		// only Started - a dodge is a one-shot, not something you hold
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &ALearningUECharacter::Dodge);
+
+#if !UE_BUILD_SHIPPING
+		// Debug only. BindKey attaches straight to a physical key, skipping the Input
+		// Action and Mapping Context entirely - fine for a developer key that must never
+		// be rebindable and must never ship, wrong for anything a player touches.
+		PlayerInputComponent->BindKey(EKeys::K, IE_Pressed, this, &ALearningUECharacter::DebugDamageSelf);
+#endif
 
 		// Attacking
 		// IA_Attack carries a Hold trigger, which splits one key into two intents:
@@ -349,16 +361,22 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	// this fires for EVERY montage, so ignore any that is not the swing we started
-	if (Montage != CurrentAttackMontage)
+	if (Montage == CurrentAttackMontage)
 	{
+		// the attack is over whether it finished cleanly or was interrupted - either way
+		// we are no longer attacking, so the flag clears in both cases
+		CurrentAttackMontage = nullptr;
+		bIsAttacking = false;
 		return;
 	}
 
-	CurrentAttackMontage = nullptr;
+	if (Montage == DodgeMontage)
+	{
+		bIsDodging = false;
 
-	// the attack is over whether it finished cleanly or was interrupted - either way we
-	// are no longer attacking, so the flag clears in both cases
-	bIsAttacking = false;
+		// put the scale back, or the next root-motion animation is silently shortened
+		SetAnimRootMotionTranslationScale(1.0f);
+	}
 }
 
 void ALearningUECharacter::Attack()
@@ -376,8 +394,8 @@ bool ALearningUECharacter::StartAttack(UAnimMontage* Montage, float Damage, floa
 {
 	// --- free refusals first. None of these change anything. ---
 
-	// one attack at a time: without this, every click restarts the montage from frame zero
-	if (bIsAttacking)
+	// one action at a time: no restarting a swing, and no swinging out of a dodge
+	if (bIsAttacking || bIsDodging)
 	{
 		return false;
 	}
@@ -430,8 +448,16 @@ bool ALearningUECharacter::StartAttack(UAnimMontage* Montage, float Damage, floa
 
 void ALearningUECharacter::Dodge()
 {
-	// a dodge is a grounded move: in the air there is no ground friction to decay
-	// the burst, and zeroing vertical velocity turns a jump into a glide
+	// --- free refusals ---
+
+	// one action at a time. Attacking and dodging are both commitments; neither
+	// interrupts the other.
+	if (bIsDodging || bIsAttacking)
+	{
+		return;
+	}
+
+	// a dodge is a grounded move
 	if (GetCharacterMovement()->IsFalling())
 	{
 		return;
@@ -441,6 +467,12 @@ void ALearningUECharacter::Dodge()
 	const float Now = GetWorld()->GetTimeSeconds();
 
 	if (Now - LastDodgeTime < DodgeCooldown)
+	{
+		return;
+	}
+
+	// rule out the only two reasons PlayAnimMontage can fail, before spending anything
+	if (!DodgeMontage || !GetMesh()->GetAnimInstance())
 	{
 		return;
 	}
@@ -455,6 +487,8 @@ void ALearningUECharacter::Dodge()
 	// the dodge is committed now - record it and go
 	LastDodgeTime = Now;
 
+	// --- nothing below here may fail ---
+
 	// dodge where the player is steering; sidestep right when standing still
 	FVector Direction = GetLastMovementInputVector();
 
@@ -463,9 +497,30 @@ void ALearningUECharacter::Dodge()
 		Direction = GetActorRightVector();
 	}
 
-	// UE idiom: normalise before scaling, so a half-pushed stick dodges as far as a key press
-	// the two trues override existing velocity instead of adding to it, so dodges don't compound
-	LaunchCharacter(Direction.GetSafeNormal() * DodgeImpulse, true, true);
+	// Normal2D so a half-pushed stick dodges as far as a key press, and so looking up
+	// or down cannot tilt the dodge into the ground or the sky.
+	Direction = Direction.GetSafeNormal2D();
+
+	// The dash animation travels along the character's own forward axis, so turn to face
+	// where we are going and let root motion carry us. One animation, any direction -
+	// at the cost of it being a roll rather than a sidestep.
+	SetActorRotation(Direction.Rotation());
+
+	// UE idiom: scale the root motion before playing. This multiplies the translation the
+	// animation applies, so one leap animation becomes a short dodge without touching the
+	// asset. Must be put back afterwards or everything else that uses root motion shrinks.
+	SetAnimRootMotionTranslationScale(DodgeRootMotionScale);
+
+	// Root motion replaces LaunchCharacter. The movement component SWEEPS this motion
+	// against the world instead of setting a ballistic velocity, so the dodge collides
+	// with walls, follows the ground, and ends when the animation does.
+	PlayAnimMontage(DodgeMontage);
+
+	LastDodgeTime = Now;
+	bIsDodging = true;
+
+	// a dodge is not a sprint; the drain timer has no other reason to stop
+	SprintEnd();
 }
 
 void ALearningUECharacter::SprintDrainTick()
