@@ -140,7 +140,12 @@ void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &ALearningUECharacter::Dodge);
 
 		// Attacking
-		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ALearningUECharacter::Attack);
+		// IA_Attack carries a Hold trigger, which splits one key into two intents:
+		//   Canceled  = released BEFORE the hold threshold, i.e. a tap
+		//   Triggered = the hold threshold was reached
+		// This is the click-vs-long-press pattern the dream game's alternate casts need.
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Canceled, this, &ALearningUECharacter::Attack);
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ALearningUECharacter::HeavyAttack);
 	}
 	else
 	{
@@ -307,7 +312,7 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 
 		HitActorsThisSwing.Add(HitActor);
 		// pass ourselves as the causer so the victim can work out which way it was hit
-		HitStats->ApplyDamage(LightAttackDamage, this);
+		HitStats->ApplyDamage(CurrentAttackDamage, this);
 
 		UE_LOG(LogLearningUE, Warning, TEXT("Punch connected with %s"), *GetNameSafe(HitActor));
 	}
@@ -315,12 +320,13 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 
 void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	// this fires for EVERY montage, so ignore the ones we do not care about. Right now
-	// there is only one, but the death and dodge montages are coming in 3.6 and 3.8.
-	if (Montage != LightAttackMontage)
+	// this fires for EVERY montage, so ignore any that is not the swing we started
+	if (Montage != CurrentAttackMontage)
 	{
 		return;
 	}
+
+	CurrentAttackMontage = nullptr;
 
 	// the attack is over whether it finished cleanly or was interrupted - either way we
 	// are no longer attacking, so the flag clears in both cases
@@ -329,22 +335,50 @@ void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInter
 
 void ALearningUECharacter::Attack()
 {
+	StartAttack(LightAttackMontage, LightAttackDamage, LightAttackStaminaCost);
+}
+
+void ALearningUECharacter::HeavyAttack()
+{
+	// same machinery, three different numbers - that is the whole point of the refactor
+	StartAttack(HeavyAttackMontage, HeavyAttackDamage, HeavyAttackStaminaCost);
+}
+
+bool ALearningUECharacter::StartAttack(UAnimMontage* Montage, float Damage, float StaminaCost)
+{
+	// --- free refusals first. None of these change anything. ---
+
 	// one attack at a time: without this, every click restarts the montage from frame zero
 	if (bIsAttacking)
 	{
-		return;
+		return false;
 	}
 
-	// UE idiom: ACharacter::PlayAnimMontage finds the mesh's AnimInstance for us and
-	// returns the montage's DURATION - zero means it never started (montage unset, no
-	// AnimInstance). The montage only reaches the screen because the Anim Blueprint has
-	// a Slot 'DefaultSlot' node.
-	if (PlayAnimMontage(LightAttackMontage) <= 0.0f)
+	// Validate the montage BEFORE spending stamina. PlayAnimMontage can only fail for
+	// these two reasons, so ruling them out here means the committing call below cannot
+	// fail after we have already been charged for it.
+	if (!Montage || !GetMesh()->GetAnimInstance())
 	{
-		return;
+		return false;
 	}
 
-	// committed now: stop sprinting, since the drain timer has no other reason to stop
+	// --- the committing check: asking costs stamina ---
+
+	if (!Stats->TryConsumeStamina(StaminaCost))
+	{
+		return false;
+	}
+
+	// --- nothing below this line may fail ---
+
+	// UE idiom: ACharacter::PlayAnimMontage finds the mesh's AnimInstance for us. The
+	// montage only reaches the screen because the Anim Blueprint has a Slot node.
+	PlayAnimMontage(Montage);
+
+	CurrentAttackMontage = Montage;
+	CurrentAttackDamage = Damage;
+
+	// stop sprinting, since the drain timer has no other reason to stop
 	SprintEnd();
 	bIsAttacking = true;
 
@@ -362,6 +396,8 @@ void ALearningUECharacter::Attack()
 			SetActorRotation(FRotator(0.0f, OwningController->GetControlRotation().Yaw, 0.0f));
 		}
 	}
+
+	return true;
 }
 
 void ALearningUECharacter::Dodge()

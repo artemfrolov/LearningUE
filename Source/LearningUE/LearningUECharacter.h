@@ -76,6 +76,33 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Combat")
 	UAnimMontage* LightAttackMontage;
 
+	/** Stamina a light attack costs */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float LightAttackStaminaCost = 10.0f;
+
+	/** The heavy attack animation. Set to AM_HeavyAttack in the Blueprint. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	UAnimMontage* HeavyAttackMontage;
+
+	/** Damage a heavy attack deals on a clean hit */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float HeavyAttackDamage = 60.0f;
+
+	/** Stamina a heavy attack costs. Slower, harder, dearer - that is the whole trade. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float HeavyAttackStaminaCost = 30.0f;
+
+	/** The montage of whichever attack is running. Used to tell our own montage ending
+	 *  apart from any other, now that there is more than one. */
+	UPROPERTY()
+	UAnimMontage* CurrentAttackMontage;
+
+	/**
+	 *  What the swing in progress is worth. The anim notify fires without knowing which
+	 *  attack it belongs to, so the character has to remember.
+	 */
+	float CurrentAttackDamage = 0.0f;
+
 	/**
 	 *  Turn to face the camera when an attack starts. The character normally faces where
 	 *  it is RUNNING, not where you are LOOKING, so standing still it swings wherever it
@@ -203,8 +230,17 @@ protected:
 	/** Called when the dodge input fires */
 	void Dodge();
 
-	/** Called when the attack input fires */
+	/** Called when the attack input is tapped */
 	void Attack();
+
+	/** Called when the attack input has been held long enough */
+	void HeavyAttack();
+
+	/**
+	 *  Shared attack machinery. Returns false and changes nothing if the attack was
+	 *  refused. Light and heavy differ only in the three values handed in.
+	 */
+	bool StartAttack(UAnimMontage* Montage, float Damage, float StaminaCost);
 
 public:
 
