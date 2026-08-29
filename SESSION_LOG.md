@@ -516,3 +516,137 @@ Health, stamina, spending, regeneration, events, and a HUD that cannot fall out 
 - [ ] Phase 5 — Enemy AI & perception
 - [ ] Phase 6 — Where GAS fits (decision session)
 - [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
+
+---
+
+## Sessions 6–8 — 2026-08-27 → 2026-08-29 — Phase 3: Melee combat
+
+Branch: `phase3-combat`.
+
+### What exists now that I built
+
+| Thing | Where | Mine? |
+|---|---|---|
+| `AM_LightAttack`, `AM_HeavyAttack`, `AM_HitReact`, 4 × `AM_Death_*`, `AM_Dodge` | `Content/Anims/` | **yes** |
+| `IA_Attack` + Hold trigger, bound to LMB | `Content/Input/` | **yes** |
+| `UAnimNotify_AttackHit` | `Source/LearningUE/` | mentor-written |
+| `DoAttackTrace` — swept sphere, damage loop | `LearningUECharacter.cpp` | damage loop **mine** |
+| `StartAttack` shared machinery, light + heavy | `LearningUECharacter.cpp` | mentor-written |
+| Poise — being hit cancels the swing | `LearningUECharacter.cpp` | **mine** |
+| `ATrainingDummy` — an AActor with stats | `Source/LearningUE/` | mentor-written |
+| `AEnemyCharacter` — mesh, stats, stagger, directional death, ragdoll | `Source/LearningUE/` | mentor-written |
+| `BP_TrainingDummy`, `BP_Enemy` | `Content/Blueprints/` | **yes** |
+| Dodge as a root-motion state | `LearningUECharacter.cpp` | mentor-written |
+
+### What I can explain now
+
+- **Montage, section, notify.** A montage is an animation you trigger from code, with
+  named sections you can jump between and event markers along the timeline. A notify is
+  Roblox's `GetMarkerReachedSignal` — the animator decides *when* the fist is dangerous,
+  not the programmer.
+- **Montages need a Slot node.** Without `Slot 'DefaultSlot'` in the Anim Blueprint,
+  `Montage_Play` runs, returns a real length, fires its notifies, and shows nothing.
+- **How Epic's combo actually works.** Clicking does not attack — it writes down the
+  time you clicked. The `CheckCombo` notify later asks "was there a click recently?"
+  That is **input buffering**, and it is most of why combat feels responsive. Release is
+  quantised to the notify grid, which is why the loop section has to be short.
+- **The hit trace is one swept sphere at one instant**, from a bone, forward along the
+  character's facing. Not a simulation of the weapon's arc. Radius is forgiveness.
+- **Object types are the first filter.** `ECC_Pawn` and `ECC_WorldDynamic` are queried;
+  `WorldStatic` is deliberately absent so punching a wall finds nothing. Collision setup
+  is the most common reason a correct trace finds nothing.
+- **Ask what an actor HAS, not what it IS.** `FindComponentByClass<UStatsComponent>()`
+  is the composition version of `Cast<ICombatDamageable>`.
+- **Pointers.** Every `UObject` and `AActor` is handled by pointer, always — engine
+  objects are owned by the world and referred to by address, never copied. That is why
+  `->` and not `.`, and why `UStatsComponent` alone does not compile.
+- **Additive vs normal animation.** An additive animation stores the *difference* from a
+  base pose so it can layer over anything. The montage editor previews it with no base
+  pose, which is why it looks broken in isolation and correct in game.
+- **Dot product = how much two directions agree.** +1 same, 0 perpendicular, −1
+  opposite. Cosine similarity, exactly. Two dot products (forward, right) carve the
+  space around an actor into four quadrants: magnitude picks the axis, sign picks the
+  side. The Phase 5 sight cone is the same operation with a threshold.
+- **Root motion vs impulse.** `LaunchCharacter` sets a ballistic velocity nothing owns.
+  Root motion is swept against the world by the movement component, so it collides,
+  follows the ground, and ends when the animation does.
+- **`SetAnimRootMotionTranslationScale`** shrinks how far an animation carries you —
+  and lives on the *character*, so forgetting to reset it silently shortens every later
+  root-motion animation.
+- **Enhanced Input Triggers.** A Hold trigger on one action splits a key into two
+  intents: `Canceled` = released before the threshold = tap; `Triggered` = threshold
+  reached = hold. No timing code. This is the click vs long-press pattern the dream
+  game's alternate-cast spells reuse.
+- **`BindKey` bypasses Enhanced Input** — right for a debug key that must never be
+  rebindable, wrong for anything a player touches. Wrapped in `#if !UE_BUILD_SHIPPING`,
+  so in a Shipping build it is absent from the binary rather than merely disabled.
+- **`SetLifeSpan`** destroys an actor after N seconds with no timer to own.
+- **Auto Blend Out.** Off = the montage holds its final pose instead of handing the pose
+  back to the state machine. That is why a corpse stopped standing back up — and it
+  means `OnMontageEnded` never fires for those montages.
+- **Spring arms trace on the Camera channel** every frame. A corpse you walk into blocks
+  that trace and springs the camera to your shoulders, so dead bodies ignore `ECC_Camera`.
+
+### Design rules added this phase
+
+7. **Make the committing call unfailable.** "Commit last" is not enough when something
+   after the commit can still fail. `PlayAnimMontage` sits after the stamina spend and
+   returns 0 for exactly two reasons, so both are ruled out *before* stamina is charged.
+8. **`||` short-circuits, so order stops being cosmetic when a side has a side effect.**
+   `if (!TryConsumeStamina(...) || bIsAttacking)` spends the stamina and *then* bails.
+9. **No refunds — move the commit point instead.** If a cost feels unfair to keep, it
+   was charged too early. (My call; the mentor agreed it was the sharper answer.)
+10. **When a side quest costs more than the main quest, note it and walk away.**
+
+### Bugs I found by playing
+
+1. Sprint stamina kept draining through an attack — `SprintEnd` had only two exits and
+   attacking was not one of them.
+2. Sprint could be *started* mid-attack.
+3. The attack fired where the character faced, not where the camera looked. Fixed by
+   snapping yaw to the control rotation on attack; toggleable.
+4. Root motion walks me around a rounded dummy instead of into it. Known; the industry
+   answer is the Motion Warping plugin. Deferred.
+5. The trace capsule lands in slightly different places each swing — frame rate, since a
+   point notify samples a fast-moving bone once. Radius absorbs it.
+6. The camera got stuck inside a corpse.
+
+### Where I corrected the mentor
+
+- The template hit reactions are **not** unusable as plain montages. They are additive,
+  and only the isolated *preview* looks broken.
+- The attack animations are unarmed, not weapon animations, so "the blade is live" was
+  wrong — though the mechanism is bone-agnostic and unchanged.
+- The legs genuinely were not animating during attacks. Twice told otherwise; the cause
+  was the Control Rig, found by muting one node.
+- `MM_Dash` is a nine-metre leap, not a dodge.
+
+### Known debt
+
+- **Foot IK is off.** `ABP_Unarmed`'s Control Rig Alpha = 0, because its foot IK ran
+  after the Slot node and rewrote the leg bones during montages. Free on a flat level.
+  Proper fix: drive Alpha from a variable that goes to 0 while a montage plays.
+- **One dodge animation**, so a dodge turns the character — a roll, not a sidestep. A
+  real sidestep needs four directional animations on the Epic skeleton. When shopping:
+  "Epic Skeleton" / "UE5 Mannequin" in the description means no retargeting; anything
+  else needs an IK Retargeter. Engine version listed on an *animation* pack barely
+  matters — animations are data, not compiled code.
+- **`DamageMe` and the `K` key** are debug-only and compiled out of Shipping already.
+- **Point notify, not a notify state.** One instant is sampled per swing. Epic shipped
+  zero notify states across all three variants, so this is the shipping-quality answer
+  for a fast punch — revisit if a slow heavy swing starts passing through people.
+- **Damage reaction logic is duplicated** between the player and the enemy. Second copy.
+  When it is a third, it becomes a component or an interface.
+
+### Phase progress
+
+- [x] **Phase 0 — Orientation**
+- [x] **Phase 1 — Input & movement**
+- [x] **Phase 2 — Stats as a component**
+- [x] **Phase 3 — Melee combat** (montages, notifies, traces, damage, hit reactions,
+      directional death + ragdoll, light vs heavy on click vs hold, poise, dodge as a
+      root-motion state)
+- [ ] Phase 4 — Data-driven design
+- [ ] Phase 5 — Enemy AI & perception
+- [ ] Phase 6 — Where GAS fits (decision session)
+- [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
