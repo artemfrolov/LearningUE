@@ -70,6 +70,7 @@ void ALearningUECharacter::BeginPlay()
 	// UE idiom: AddDynamic takes the listener and the function to call on it. The
 	// component never learns who subscribed - it only broadcasts.
 	Stats->OnDied.AddDynamic(this, &ALearningUECharacter::HandleDeath);
+	Stats->OnDamaged.AddDynamic(this, &ALearningUECharacter::HandleDamaged);
 
 	// The AnimInstance is the running instance of the Anim Blueprint on our mesh.
 	// It announces when any montage finishes; that is how an attack learns it is over.
@@ -107,6 +108,33 @@ void ALearningUECharacter::HandleDeath(AActor* Killer)
 
 	// stop the character where it stands. A real death gets a montage and a ragdoll in Phase 3.
 	GetCharacterMovement()->DisableMovement();
+}
+
+void ALearningUECharacter::HandleDamaged(float Amount, AActor* Causer)
+{
+	if (!Stats->IsAlive())
+	{
+		return;
+	}
+	// poise: an attack in progress dies here. No need to clear bIsAttacking - stopping a
+	// montage ends it as INTERRUPTED, which fires HandleMontageEnded, which clears it.
+	// That branch was written in 3.3 for a case that did not exist yet.
+	if (bIsAttacking)
+	{
+		StopAnimMontage(CurrentAttackMontage);
+	}
+
+	if (HitReactMontage)
+	{
+		PlayAnimMontage(HitReactMontage);
+		return;
+	}
+	if (Causer)
+	{
+		const FVector AwayFromAttacker = (GetActorLocation() - Causer->GetActorLocation()).GetSafeNormal2D();
+
+		LaunchCharacter(AwayFromAttacker * HitKnockbackImpulse, true, false);
+	}
 }
 
 void ALearningUECharacter::DamageMe(float Amount)

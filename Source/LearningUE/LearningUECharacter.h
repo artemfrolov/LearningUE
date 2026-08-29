@@ -97,6 +97,13 @@ protected:
 	UPROPERTY()
 	UAnimMontage* CurrentAttackMontage;
 
+	/** Flinch played when a blow lands. Additive, so it layers over whatever we are doing. */
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage* HitReactMontage;
+
+	/** Fallback shove when no flinch montage is set, in cm/s */
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float HitKnockbackImpulse = 400.0f;
 	/**
 	 *  What the swing in progress is worth. The anim notify fires without knowing which
 	 *  attack it belongs to, so the character has to remember.
@@ -198,6 +205,13 @@ protected:
 	UFUNCTION()
 	void HandleDeath(AActor* Killer);
 
+	/**
+	 *  Runs whenever we take damage. Cancels an attack in progress - poise: being hit
+	 *  mid-swing costs you the swing, and the stamina, which is what makes trading
+	 *  blows a decision rather than a race.
+	 */
+	UFUNCTION()
+	void HandleDamaged(float Amount, AActor* Causer);
 	/**
 	 *  Runs when ANY montage on this character finishes - so it must check which one.
 	 *  bInterrupted is true when the montage was cut short rather than played to the end.
