@@ -12,7 +12,8 @@
  *  Multicast = any number of listeners.
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStatChanged, float, NewValue, float, MaxValue);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDied);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDied, AActor*, Killer);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamaged, float, Amount, AActor*, Causer);
 
 /**
  *  Holds the gameplay resources of whatever actor it is attached to.
@@ -40,6 +41,13 @@ public:
 	/** Fires once, the moment health reaches zero. */
 	UPROPERTY(BlueprintAssignable, Category = "Stats|Events")
 	FOnDied OnDied;
+
+	/**
+	 *  Fires when health is REMOVED, carrying how much and who did it. Distinct from
+	 *  OnHealthChanged, which also fires on healing and says nothing about the source.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Stats|Events")
+	FOnDamaged OnDamaged;
 
 protected:
 
@@ -91,14 +99,18 @@ protected:
 	 *  The ONLY things that write CurrentHealth / CurrentStamina. Every other function
 	 *  goes through these, so clamping and the broadcast cannot be forgotten at a call site.
 	 */
-	void SetHealth(float NewValue);
+	void SetHealth(float NewValue, AActor* Causer = nullptr);
 	void SetStamina(float NewValue);
 
 public:
 
-	/** Removes health, never below zero. Returns how much was actually removed. */
+	/**
+	 *  Removes health, never below zero. Returns how much was actually removed.
+	 *  Causer is passed through to OnDamaged listeners and is not used here - the
+	 *  component has no opinion about who hit it, it just carries the message.
+	 */
 	UFUNCTION(BlueprintCallable, Category="Stats|Health")
-	float ApplyDamage(float Amount);
+	float ApplyDamage(float Amount, AActor* Causer = nullptr);
 
 	/** Restores health, never above MaxHealth. Returns how much was actually restored. */
 	UFUNCTION(BlueprintCallable, Category="Stats|Health")

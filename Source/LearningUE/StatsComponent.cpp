@@ -57,7 +57,7 @@ void UStatsComponent::RegenerateStamina()
 	SetStamina(CurrentStamina + StaminaRegenRate * RegenInterval);
 }
 
-void UStatsComponent::SetHealth(float NewValue)
+void UStatsComponent::SetHealth(float NewValue, AActor* Causer)
 {
 	const float Clamped = FMath::Clamp(NewValue, 0.0f, MaxHealth);
 
@@ -77,7 +77,9 @@ void UStatsComponent::SetHealth(float NewValue)
 	// hit on a corpse does not fire it again
 	if (bWasAlive && !IsAlive())
 	{
-		OnDied.Broadcast();
+		// the killer rides along so listeners can react directionally - a death
+		// animation needs to know which way the blow came from
+		OnDied.Broadcast(Causer);
 	}
 }
 
@@ -95,7 +97,7 @@ void UStatsComponent::SetStamina(float NewValue)
 	OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
 }
 
-float UStatsComponent::ApplyDamage(float Amount)
+float UStatsComponent::ApplyDamage(float Amount, AActor* Causer)
 {
 	// ignore healing-by-negative-damage and hits on something already dead
 	if (Amount <= 0.0f || !IsAlive())
@@ -104,10 +106,17 @@ float UStatsComponent::ApplyDamage(float Amount)
 	}
 
 	const float Before = CurrentHealth;
-	SetHealth(CurrentHealth - Amount);
+	SetHealth(CurrentHealth - Amount, Causer);
 
-	// report what actually landed - a hit for 50 on a target with 20 left removed 20
-	return Before - CurrentHealth;
+	// what actually landed - a hit for 50 on a target with 20 left removed 20
+	const float Dealt = Before - CurrentHealth;
+
+	if (Dealt > 0.0f)
+	{
+		OnDamaged.Broadcast(Dealt, Causer);
+	}
+
+	return Dealt;
 }
 
 float UStatsComponent::Heal(float Amount)

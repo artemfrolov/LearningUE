@@ -12,6 +12,7 @@ class UCameraComponent;
 class UInputAction;
 class UStatsComponent;
 class UUserWidget;
+class UAnimMontage;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -67,13 +68,94 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Movement")
 	float SprintSpeed = 900.0f;
 
+	/** Attack Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* AttackAction;
+
+	/** The light attack animation. Set to AM_LightAttack in the Blueprint. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	UAnimMontage* LightAttackMontage;
+
+	/** Stamina a light attack costs */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float LightAttackStaminaCost = 10.0f;
+
+	/** The heavy attack animation. Set to AM_HeavyAttack in the Blueprint. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	UAnimMontage* HeavyAttackMontage;
+
+	/** Damage a heavy attack deals on a clean hit */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float HeavyAttackDamage = 60.0f;
+
+	/** Stamina a heavy attack costs. Slower, harder, dearer - that is the whole trade. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float HeavyAttackStaminaCost = 30.0f;
+
+	/** The montage of whichever attack is running. Used to tell our own montage ending
+	 *  apart from any other, now that there is more than one. */
+	UPROPERTY()
+	UAnimMontage* CurrentAttackMontage;
+
+	/** Flinch played when a blow lands. Additive, so it layers over whatever we are doing. */
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage* HitReactMontage;
+
+	/** Fallback shove when no flinch montage is set, in cm/s */
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float HitKnockbackImpulse = 400.0f;
+	/**
+	 *  What the swing in progress is worth. The anim notify fires without knowing which
+	 *  attack it belongs to, so the character has to remember.
+	 */
+	float CurrentAttackDamage = 0.0f;
+
+	/**
+	 *  Turn to face the camera when an attack starts. The character normally faces where
+	 *  it is RUNNING, not where you are LOOKING, so standing still it swings wherever it
+	 *  last moved. Off = the old-school behaviour, for comparison.
+	 */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	bool bFaceCameraOnAttack = true;
+
+	/** Damage a light attack deals on a clean hit */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float LightAttackDamage = 25.0f;
+
+	/** How far in front of the fist the blow reaches, in cm */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float AttackTraceDistance = 75.0f;
+
+	/** How wide the blow is, in cm. Forgiveness: bigger means easier to land. */
+	UPROPERTY(EditAnywhere, Category="Combat")
+	float AttackTraceRadius = 40.0f;
+
+	/** Draw the trace shape in the world. Turn off before packaging. */
+	UPROPERTY(EditAnywhere, Category="Combat|Debug")
+	bool bShowAttackTrace = true;
+
 	/** Dodge Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DodgeAction;
 
-	/** Speed of the dodge burst, in cm/s. Decays through the movement component's braking. */
+	/**
+	 *  The dodge animation. Carries root motion, so the ANIMATION moves the character
+	 *  rather than a velocity impulse - which is what stops a dodge sailing off a ledge.
+	 *  Set to AM_Dodge in the Blueprint.
+	 */
 	UPROPERTY(EditAnywhere, Category="Movement")
-	float DodgeImpulse = 1200.0f;
+	UAnimMontage* DodgeMontage;
+
+	/**
+	 *  Multiplier on how far the dodge montage's root motion carries us. MM_Dash is a
+	 *  long leap; a dodge is a short hop. Scaling the motion is cheaper than finding a
+	 *  new animation, and the distance is tunable while playing.
+	 */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float DodgeRootMotionScale = 0.35f;
+
+	/** True from the moment the dodge montage starts until it ends. Runtime state. */
+	bool bIsDodging = false;
 
 	/** Seconds before the character can dodge again */
 	UPROPERTY(EditAnywhere, Category = "Movement")
@@ -81,6 +163,18 @@ protected:
 
 	/** When the last dodge happened. Runtime state, not a setting, so no UPROPERTY. */
 	float LastDodgeTime = -1000.0f;
+
+	/** True from the moment an attack montage starts until it ends. Runtime state. */
+	bool bIsAttacking = false;
+
+	/**
+	 *  Who this swing has already hit. Cleared when an attack starts, not when a trace
+	 *  runs - a heavy attack in 3.7 will have two notifies in one montage, and the second
+	 *  trace must not re-hit whoever the first one caught.
+	 *  UPROPERTY so the garbage collector keeps these entries honest.
+	 */
+	UPROPERTY()
+	TSet<AActor*> HitActorsThisSwing;
 
 	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
 	UPROPERTY(EditAnywhere, Category = "Movement")
@@ -124,7 +218,28 @@ protected:
 	 *  delegates bind by function NAME at runtime, and only UFUNCTION registers a name.
 	 */
 	UFUNCTION()
-	void HandleDeath();
+	void HandleDeath(AActor* Killer);
+
+	/**
+	 *  Runs whenever we take damage. Cancels an attack in progress - poise: being hit
+	 *  mid-swing costs you the swing, and the stamina, which is what makes trading
+	 *  blows a decision rather than a race.
+	 */
+	UFUNCTION()
+	void HandleDamaged(float Amount, AActor* Causer);
+	/**
+	 *  Runs when ANY montage on this character finishes - so it must check which one.
+	 *  bInterrupted is true when the montage was cut short rather than played to the end.
+	 */
+	UFUNCTION()
+	void HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	/** How much the debug self-damage key deals */
+	UPROPERTY(EditAnywhere, Category="Combat|Debug")
+	float DebugSelfDamage = 10.0f;
+
+	/** Bound to a raw key press, not an Input Action. Debug builds only. */
+	void DebugDamageSelf();
 
 	/**
 	 *  Debug only: type "DamageMe 200" in the console (~) to hurt yourself.
@@ -151,7 +266,26 @@ protected:
 	/** Called when the dodge input fires */
 	void Dodge();
 
+	/** Called when the attack input is tapped */
+	void Attack();
+
+	/** Called when the attack input has been held long enough */
+	void HeavyAttack();
+
+	/**
+	 *  Shared attack machinery. Returns false and changes nothing if the attack was
+	 *  refused. Light and heavy differ only in the three values handed in.
+	 */
+	bool StartAttack(UAnimMontage* Montage, float Damage, float StaminaCost);
+
 public:
+
+	/**
+	 *  Sweeps for targets in front of the given bone. Called by the Attack Hit anim
+	 *  notify at the frame the blow lands - never on a schedule, and never by the
+	 *  input code, because only the animation knows when the fist is actually out there.
+	 */
+	void DoAttackTrace(FName BoneName);
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
