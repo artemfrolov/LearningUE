@@ -79,6 +79,13 @@ void ALearningUECharacter::BeginPlay()
 		AnimInstance->OnMontageEnded.AddDynamic(this, &ALearningUECharacter::HandleMontageEnded);
 	}
 
+	// The dropdown-left-empty failure: correct code that silently does nothing. Caught at
+	// spawn rather than on the first click, so it is obvious before you go looking.
+	if (!EquippedWeapon)
+	{
+		UE_LOG(LogLearningUE, Error, TEXT("%s has no EquippedWeapon set - it cannot attack."), *GetName());
+	}
+
 	// Only the local player gets a HUD. An AI-possessed copy of this character must not
 	// draw one, and in multiplayer neither must the other players' pawns.
 	if (IsLocallyControlled() && PlayerHUDClass)
@@ -287,11 +294,24 @@ void ALearningUECharacter::SprintEnd()
 
 void ALearningUECharacter::DoAttackTrace(FName BoneName)
 {
+	// The anim notify fires straight off the animation timeline and knows nothing about
+	// weapons. With no weapon there is no reach and no radius, so there is no blow to
+	// resolve - bail before touching the world.
+	if (!EquippedWeapon)
+	{
+		return;
+	}
+
+	// pulled into locals once: read four times below, and it keeps the geometry lines
+	// readable rather than three-deep in arrows
+	const float TraceDistance = EquippedWeapon->TraceDistance;
+	const float TraceRadius = EquippedWeapon->TraceRadius;
+
 	// start at the fist, reach forward. Note the direction comes from the CHARACTER, not
 	// from the fist's motion - the same simplification Epic made. Predictable and cheap;
 	// the cost is that a target directly beside you during a wide swing can be missed.
 	const FVector TraceStart = GetMesh()->GetSocketLocation(BoneName);
-	const FVector TraceEnd = TraceStart + (GetActorForwardVector() * AttackTraceDistance);
+	const FVector TraceEnd = TraceStart + (GetActorForwardVector() * TraceDistance);
 
 	// which KINDS of thing can be punched. Pawn covers characters; WorldDynamic covers
 	// movable props like a training dummy or a crate. Static world geometry is absent on
@@ -302,7 +322,7 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 
 	// a sphere dragged from start to end, rather than a hairline ray - a thin ray between
 	// two frames of a fast animation slips straight through people
-	const FCollisionShape Sphere = FCollisionShape::MakeSphere(AttackTraceRadius);
+	const FCollisionShape Sphere = FCollisionShape::MakeSphere(TraceRadius);
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
@@ -316,13 +336,13 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 		// separate spheres. Half height covers the travel plus a radius at each cap.
 		const FVector Direction = (TraceEnd - TraceStart).GetSafeNormal();
 		const FVector Centre = (TraceStart + TraceEnd) * 0.5f;
-		const float HalfHeight = (AttackTraceDistance * 0.5f) + AttackTraceRadius;
+		const float HalfHeight = (TraceDistance * 0.5f) + TraceRadius;
 
 		// MakeFromZ because a capsule's axis is its local Z
 		const FQuat Orientation = FRotationMatrix::MakeFromZ(Direction).ToQuat();
 
 		// 2 seconds so it can be studied after the swing is over
-		DrawDebugCapsule(GetWorld(), Centre, HalfHeight, AttackTraceRadius, Orientation, FColor::Yellow, false, 2.0f);
+		DrawDebugCapsule(GetWorld(), Centre, HalfHeight, TraceRadius, Orientation, FColor::Yellow, false, 2.0f);
 	}
 
 	for (const FHitResult& Hit : Hits)
@@ -381,16 +401,28 @@ void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInter
 
 void ALearningUECharacter::Attack()
 {
-	StartAttack(LightAttackMontage, LightAttackDamage, LightAttackStaminaCost);
+	// silent: BeginPlay already shouted about the missing weapon, and repeating it on
+	// every click would bury the one message that matters
+	if (!EquippedWeapon)
+	{
+		return;
+	}
+
+	StartAttack(EquippedWeapon->LightAttack);
 }
 
 void ALearningUECharacter::HeavyAttack()
 {
-	// same machinery, three different numbers - that is the whole point of the refactor
-	StartAttack(HeavyAttackMontage, HeavyAttackDamage, HeavyAttackStaminaCost);
+	if (!EquippedWeapon)
+	{
+		return;
+	}
+
+	// same machinery, a different definition - and neither line mentions a number
+	StartAttack(EquippedWeapon->HeavyAttack);
 }
 
-bool ALearningUECharacter::StartAttack(UAnimMontage* Montage, float Damage, float StaminaCost)
+bool ALearningUECharacter::StartAttack(const FAttackDefinition& Attack)
 {
 	// --- free refusals first. None of these change anything. ---
 
@@ -403,14 +435,14 @@ bool ALearningUECharacter::StartAttack(UAnimMontage* Montage, float Damage, floa
 	// Validate the montage BEFORE spending stamina. PlayAnimMontage can only fail for
 	// these two reasons, so ruling them out here means the committing call below cannot
 	// fail after we have already been charged for it.
-	if (!Montage || !GetMesh()->GetAnimInstance())
+	if (!Attack.Montage || !GetMesh()->GetAnimInstance())
 	{
 		return false;
 	}
 
 	// --- the committing check: asking costs stamina ---
 
-	if (!Stats->TryConsumeStamina(StaminaCost))
+	if (!Stats->TryConsumeStamina(Attack.StaminaCost))
 	{
 		return false;
 	}
@@ -419,10 +451,10 @@ bool ALearningUECharacter::StartAttack(UAnimMontage* Montage, float Damage, floa
 
 	// UE idiom: ACharacter::PlayAnimMontage finds the mesh's AnimInstance for us. The
 	// montage only reaches the screen because the Anim Blueprint has a Slot node.
-	PlayAnimMontage(Montage);
+	PlayAnimMontage(Attack.Montage);
 
-	CurrentAttackMontage = Montage;
-	CurrentAttackDamage = Damage;
+	CurrentAttackMontage = Attack.Montage;
+	CurrentAttackDamage = Attack.Damage;
 
 	// stop sprinting, since the drain timer has no other reason to stop
 	SprintEnd();

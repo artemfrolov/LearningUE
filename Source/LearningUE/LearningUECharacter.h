@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "WeaponData.h"
 #include "LearningUECharacter.generated.h"
 
 class USpringArmComponent;
@@ -72,25 +73,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* AttackAction;
 
-	/** The light attack animation. Set to AM_LightAttack in the Blueprint. */
+	/**
+	 *  What this character fights with. Both attacks, their damage, their stamina costs
+	 *  and the reach of the blow all now live in this one asset instead of in eight
+	 *  fields on the character. Set to DA_Fists in the Blueprint.
+	 *
+	 *  A pointer to an asset, exactly like the montage pointers above - the difference is
+	 *  that a montage is one animation, while this is a whole weapon's worth of facts.
+	 */
 	UPROPERTY(EditAnywhere, Category="Combat")
-	UAnimMontage* LightAttackMontage;
-
-	/** Stamina a light attack costs */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float LightAttackStaminaCost = 10.0f;
-
-	/** The heavy attack animation. Set to AM_HeavyAttack in the Blueprint. */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	UAnimMontage* HeavyAttackMontage;
-
-	/** Damage a heavy attack deals on a clean hit */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float HeavyAttackDamage = 60.0f;
-
-	/** Stamina a heavy attack costs. Slower, harder, dearer - that is the whole trade. */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float HeavyAttackStaminaCost = 30.0f;
+	UWeaponData* EquippedWeapon;
 
 	/** The montage of whichever attack is running. Used to tell our own montage ending
 	 *  apart from any other, now that there is more than one. */
@@ -117,18 +109,6 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Category="Combat")
 	bool bFaceCameraOnAttack = true;
-
-	/** Damage a light attack deals on a clean hit */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float LightAttackDamage = 25.0f;
-
-	/** How far in front of the fist the blow reaches, in cm */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float AttackTraceDistance = 75.0f;
-
-	/** How wide the blow is, in cm. Forgiveness: bigger means easier to land. */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float AttackTraceRadius = 40.0f;
 
 	/** Draw the trace shape in the world. Turn off before packaging. */
 	UPROPERTY(EditAnywhere, Category="Combat|Debug")
@@ -274,9 +254,14 @@ protected:
 
 	/**
 	 *  Shared attack machinery. Returns false and changes nothing if the attack was
-	 *  refused. Light and heavy differ only in the three values handed in.
+	 *  refused. Light and heavy differ only in the definition handed in - one argument
+	 *  now instead of three, and adding a fourth value to an attack changes no
+	 *  signature here at all.
+	 *
+	 *  const& because FAttackDefinition is a struct: passing it plainly would COPY all
+	 *  its fields, and we only need to read them.
 	 */
-	bool StartAttack(UAnimMontage* Montage, float Damage, float StaminaCost);
+	bool StartAttack(const FAttackDefinition& Attack);
 
 public:
 
