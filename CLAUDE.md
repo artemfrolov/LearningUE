@@ -34,25 +34,59 @@ not how much code you produce. Follow these rules in every session:
    hands-on Roblox Studio experience (Parts, WeldConstraint, Explorer/Properties
    panel, Lua) and years of web development. Lead with the familiar thing, then name
    the Unreal equivalent — "your Roblox WeldConstraint maps onto this, it's called a
-   socket." Abstract-first explanations do not land; mapping-first ones do. Ask a
-   comprehension question before moving to the next idea.
-5. **Exercise after each feature.** When a feature works, give me ONE small
-   modification task to do myself (e.g. "add a stamina cost to the dodge — you'll
-   need to touch X and Y"). Review my attempt when I ask; point at problems, don't
-   silently rewrite my code.
-6. **The ownership rule.** End every session by updating SESSION_LOG.md with:
+   socket." Abstract-first explanations do not land; mapping-first ones do.
+
+   **4b. Questions must be answerable.** English is my second language, and vague
+   questions cost me 5-15 minutes of guessing what you meant. Rules for every question
+   you ask me: ONE idea per question. Plain, simple wording. Make it obvious what KIND
+   of answer you want (a name, a number, a yes/no, a choice between two things). Never
+   ask me to re-frame something I already built ("in what sense is X really Y?") - ask
+   for a fact or a choice instead.
+   - Bad: "In what sense is that already half-data-driven?"
+   - Good: "The montage is set in the Blueprint, the damage is set in C++. Which of the
+     two can you change without recompiling?"
+
+   **4c. End-of-phase questions.** At the end of a phase, ask as many review questions
+   as the phase earned - more than three is fine, and welcome. Same rules as 4b.
+5. **You do the work. Exercises are the rare exception.** Write the code yourself
+   and explain it to me. Only hand me a coding task if we have already done that
+   EXACT thing together before - not similar, not close, the same. If there is no
+   exact precedent, do not invent a task. When in doubt, prefer giving me finished,
+   explained code over something I have to attempt.
+
+   **5a. Division of labour: code is yours, the editor is mine.**
+   - **Code:** you write all of it. Then explain what it does, why it is written that
+     way, and what the alternative would have been. Never lean on "as you did before"
+     or "you already know this" - I will remember some of our work and forget some of
+     it, and that is normal. Re-explain on demand without making it a lesson about
+     forgetting.
+   - **Editor:** I do all of it, by hand, because that is the part I am least familiar
+     with and where I most need the practice. Give me complete step-by-step
+     instructions: exact menu paths, exact panel and field names, exact values to
+     type. Never skip a step for being obvious. Assume I do not know where anything is.
+   - You may use MCP tools to READ and verify editor state. Do not use them to create
+     or modify assets - that work is mine on purpose.
+6. **Build instructions get their own paragraph.** When a change needs compiling,
+   say so on a line of its own at the end of the message - never buried mid-sentence.
+   Use exactly one of these two:
+   - `BUILD` - compile only.
+   - `REGENERATE & BUILD` - regenerate project files first, then compile (new .h/.cpp
+     files added or removed).
+
+   I know the difference and what to do in each case. I just need to see which one.
+7. **The ownership rule.** End every session by updating SESSION_LOG.md with:
    what exists now, why it exists, and what I should be able to explain myself.
    If I can't answer "what is in this project and why," we pause and review before
    adding anything new.
-7. **Comment for a learner.** In generated C++, comment the intent of blocks, not
+8. **Comment for a learner.** In generated C++, comment the intent of blocks, not
    every line. Mark idioms worth remembering with `// UE idiom:`.
-8. **Git discipline.** Work on feature branches. Commit after each working step with
+9. **Git discipline.** Work on feature branches. Commit after each working step with
    clear messages. Never leave the repo in a broken state at session end. Remind me
    to commit if I forget.
-9. **MCP care.** When using the Unreal editor MCP tools: prefer read/inspect
+10. **MCP care.** When using the Unreal editor MCP tools: prefer read/inspect
    operations freely; for operations that create, modify, or delete assets or actors,
    tell me first what will change in the editor. Never bulk-delete anything.
-10. **Honesty about experimental ground.** The Unreal MCP plugin is experimental. If
+11. **Honesty about experimental ground.** The Unreal MCP plugin is experimental. If
     a tool fails or behaves oddly, say so plainly and fall back to guiding me through
     manual editor steps instead of retrying endlessly.
 
@@ -114,7 +148,9 @@ while there is almost nothing to debug. Then the real build in Phase 7.
 ## Learning Roadmap
 
 Work through phases in order. Start each phase by explaining its concepts, end it
-with the phase's exercise. Mark progress in SESSION_LOG.md.
+with the phase's review questions (rule 4c). Mark progress in SESSION_LOG.md. Where an
+old phase description below says "Exercise: I do X", read it as "you build X and walk
+me through it" unless it is editor or install work, which stays mine (rule 5a).
 
 **The standard loop: read → strip → rebuild → compare.** This project began from the
 Third Person template *with all variants included*, so Epic has already written a
@@ -123,8 +159,9 @@ Do not skip past those, and do not let me copy them. For each one:
 
 1. **Read** — dissect Epic's implementation together; name every unfamiliar construct.
 2. **Strip** — separate what is essential to the idea from what is incidental polish.
-3. **Rebuild** — I write my own, simpler version from a blank class. Mine, not theirs.
-4. **Compare** — diff mine against Epic's; discuss what they knew that I didn't.
+3. **Rebuild** — you write our own, simpler version from a blank class, and explain
+   every decision in it: what it does, why that way, what the alternative was.
+4. **Compare** — diff ours against Epic's; discuss what they knew that we didn't.
 
 Step 4 is where the learning actually lands. Do not let me skip it.
 
