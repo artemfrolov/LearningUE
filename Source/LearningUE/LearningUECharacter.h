@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "WeaponData.h"
 #include "LearningUECharacter.generated.h"
 
 class USpringArmComponent;
@@ -72,30 +73,31 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* AttackAction;
 
-	/** The light attack animation. Set to AM_LightAttack in the Blueprint. */
+	/**
+	 *  What this character fights with. Both attacks, their damage, their stamina costs
+	 *  and the reach of the blow all now live in this one asset instead of in eight
+	 *  fields on the character. Set to DA_Fists in the Blueprint.
+	 *
+	 *  A pointer to an asset, exactly like the montage pointers above - the difference is
+	 *  that a montage is one animation, while this is a whole weapon's worth of facts.
+	 */
 	UPROPERTY(EditAnywhere, Category="Combat")
-	UAnimMontage* LightAttackMontage;
+	UWeaponData* EquippedWeapon;
 
-	/** Stamina a light attack costs */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float LightAttackStaminaCost = 10.0f;
-
-	/** The heavy attack animation. Set to AM_HeavyAttack in the Blueprint. */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	UAnimMontage* HeavyAttackMontage;
-
-	/** Damage a heavy attack deals on a clean hit */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float HeavyAttackDamage = 60.0f;
-
-	/** Stamina a heavy attack costs. Slower, harder, dearer - that is the whole trade. */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float HeavyAttackStaminaCost = 30.0f;
-
-	/** The montage of whichever attack is running. Used to tell our own montage ending
-	 *  apart from any other, now that there is more than one. */
+	/**
+	 *  The swing currently in flight - a copy of the definition StartAttack accepted.
+	 *
+	 *  Two members used to live here, one for the montage and one for the damage. They
+	 *  are one member now, because the anim notify fires later and needs to know
+	 *  EVERYTHING about the attack, not two facts about it. Add a field to
+	 *  FAttackDefinition and it arrives here automatically.
+	 *
+	 *  A copy rather than a pointer: the weapon could in principle be swapped mid-swing,
+	 *  and the blow that is already travelling should still be the blow you threw.
+	 *  UPROPERTY so the garbage collector sees the montage pointer inside the struct.
+	 */
 	UPROPERTY()
-	UAnimMontage* CurrentAttackMontage;
+	FAttackDefinition CurrentAttack;
 
 	/** Flinch played when a blow lands. Additive, so it layers over whatever we are doing. */
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -105,30 +107,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float HitKnockbackImpulse = 400.0f;
 	/**
-	 *  What the swing in progress is worth. The anim notify fires without knowing which
-	 *  attack it belongs to, so the character has to remember.
-	 */
-	float CurrentAttackDamage = 0.0f;
-
-	/**
 	 *  Turn to face the camera when an attack starts. The character normally faces where
 	 *  it is RUNNING, not where you are LOOKING, so standing still it swings wherever it
 	 *  last moved. Off = the old-school behaviour, for comparison.
 	 */
 	UPROPERTY(EditAnywhere, Category="Combat")
 	bool bFaceCameraOnAttack = true;
-
-	/** Damage a light attack deals on a clean hit */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float LightAttackDamage = 25.0f;
-
-	/** How far in front of the fist the blow reaches, in cm */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float AttackTraceDistance = 75.0f;
-
-	/** How wide the blow is, in cm. Forgiveness: bigger means easier to land. */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	float AttackTraceRadius = 40.0f;
 
 	/** Draw the trace shape in the world. Turn off before packaging. */
 	UPROPERTY(EditAnywhere, Category="Combat|Debug")
@@ -274,9 +258,14 @@ protected:
 
 	/**
 	 *  Shared attack machinery. Returns false and changes nothing if the attack was
-	 *  refused. Light and heavy differ only in the three values handed in.
+	 *  refused. Light and heavy differ only in the definition handed in - one argument
+	 *  now instead of three, and adding a fourth value to an attack changes no
+	 *  signature here at all.
+	 *
+	 *  const& because FAttackDefinition is a struct: passing it plainly would COPY all
+	 *  its fields, and we only need to read them.
 	 */
-	bool StartAttack(UAnimMontage* Montage, float Damage, float StaminaCost);
+	bool StartAttack(const FAttackDefinition& Attack);
 
 public:
 
