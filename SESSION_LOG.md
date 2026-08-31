@@ -643,10 +643,165 @@ Branch: `phase3-combat`.
 - [x] **Phase 0 — Orientation**
 - [x] **Phase 1 — Input & movement**
 - [x] **Phase 2 — Stats as a component**
-- [x] **Phase 3 — Melee combat** (montages, notifies, traces, damage, hit reactions,
-      directional death + ragdoll, light vs heavy on click vs hold, poise, dodge as a
-      root-motion state)
+- [x] **Phase 3 — Melee combat**
 - [ ] Phase 4 — Data-driven design
+- [ ] Phase 5 — Enemy AI & perception
+- [ ] Phase 6 — Where GAS fits (decision session)
+- [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
+
+---
+
+## Session 9 — 2026-08-30 → 2026-08-31 — Phase 4: Data-driven design
+
+Branch: `phase4-data`. First phase with **no Epic version to read** — a grep over the
+whole `Source/` tree found zero uses of `DataTable`, `UDataAsset` or `FTableRowBase`.
+Epic's Combat variant hardcodes everything. So the read → strip → rebuild → compare loop
+did not apply; this phase was build-first.
+
+### How the sessions changed
+
+Mid-phase I rewrote the mentor rules in CLAUDE.md. The short version:
+
+- **Claude writes all the C++ and explains it.** No exercises unless we have done the
+  *exact* thing before. No "as you already did before" — forgetting is normal.
+- **I do all the editor work**, with exhaustive step-by-step instructions. That is where
+  my gap actually is; typing out C++ I already understand teaches me nothing.
+- **`BUILD` / `REGENERATE & BUILD` on its own line**, never buried mid-sentence.
+- **Questions must be answerable**: one idea, plain wording, obvious what kind of answer
+  is wanted. English is my second language and vague framings cost me 10+ minutes.
+- **End-of-phase questions may exceed three.**
+
+Also settled a question left open since Phase 0: **the MCP plugin can create and modify
+assets**, not just read. It exposes 19 toolsets including `DataAssetTools`,
+`DataTableTools`, `BlueprintTools` and `SceneTools`. The division of labour is a
+deliberate choice, not a limitation — Claude uses MCP read-only, to verify my work.
+
+### What exists now
+
+| Thing | Where | Whose |
+|---|---|---|
+| `FAttackDefinition` — montage, damage, stamina cost, play rate, damage type | `WeaponData.h` | mentor-written |
+| `UWeaponData` — two attacks + reach, as a DataAsset | `WeaponData.h` | mentor-written |
+| `EDamageType`, `EArmourType`, `FArmourMatchupRow` | `CombatTypes.h` | mentor-written |
+| `CalculateMitigatedDamage` — the armour formula | `StatsComponent.cpp` | mentor-written |
+| `DA_Fists`, `DA_Axe` | `Content/Data/` | **mine** |
+| `DT_ArmourMatchups` — 3 rows, 9 numbers | `Content/Data/` | **mine** |
+| Two enemies with different armour, one Blueprint | level, per-instance overrides | **mine** |
+| The damage-type model itself (Slash/Pierce/Bludgeon) | design | **mine** |
+
+Eight hardcoded fields left `LearningUECharacter.h`. What replaced them is one pointer.
+
+### What I can explain now
+
+- **DataAsset vs DataTable, and when each wins.** A **DataAsset** is one file per thing,
+  holding references to other assets, and can carry fields a sibling does not. A
+  **DataTable** is many rows of identical shape, keyed by name, editable like a
+  spreadsheet and exportable to CSV. Weapons became assets; the 3x3 matchup grid became
+  a table. Both are correct; they answer different questions.
+- **Declare the shape once.** `FAttackDefinition` describes an attack, and a weapon uses
+  it twice. Every field added since — `PlayRate`, `DamageType` — reached both attacks on
+  every weapon for the price of one line. That decision paid for itself twice in one
+  phase.
+- **`USTRUCT` vs `UCLASS`.** A struct has no pointer, no lifetime, no garbage
+  collection. It lives inside whatever owns it and is copied on assignment — hence `.`
+  and not `->`. Always initialise its members: a property absent from a saved asset
+  falls back to the C++ default, which is why adding `PlayRate = 1.0f` did not break two
+  already-saved weapons.
+- **`UENUM` must be `: uint8`** to be visible to Blueprints and the Details panel.
+  `UMETA(DisplayName=...)` sets the label in the dropdown — which is why the enum value
+  `Light` displays as "Light Armour" but the DataTable row must still be named `Light`.
+- **`FTableRowBase` is the whole contract** for a DataTable row. Inheriting it is what
+  makes a struct appear in the editor's row-structure picker.
+- **`StaticEnum<T>()->GetNameStringByValue(...)`** turns an enum value into its name at
+  runtime. That is how row names are derived from the enum, so there is no second list
+  to keep in sync — add `Chain` to the enum and the row it looks for is `"Chain"`.
+- **`FindRow` returns a pointer INTO the table**, not a copy. Read it; do not store it.
+  Its context-string argument exists only for the error message, so make it useful.
+- **Diminishing returns beat subtraction.** `Damage - Armour` zeroes out light attacks,
+  barely troubles heavy ones, and goes negative without a clamp. `K / (K + Armour)`
+  approaches zero without reaching it, so no immunity and no clamping. `K` is named
+  `ArmourHalvingPoint` because that is literally what it is.
+- **Per-instance overrides.** Two enemies of one Blueprint can carry different armour by
+  overriding the property on the placed actor. A **yellow arrow** marks any property
+  changed from its Blueprint default, and resets it.
+- **The failure I keep hitting has a shape: an empty dropdown.** Correct code, silently
+  doing nothing. Third time this project. `BeginPlay` now logs an error if
+  `EquippedWeapon` is unset.
+
+### The numbers, and what they proved
+
+Same two weapons, three targets, light attacks only:
+
+| Target | Axe (Slash) | Fists (Bludgeon) |
+|---|---|---|
+| Dummy — Unarmoured, 0 | **2 hits** | 5 hits |
+| Enemy 1 — Light, 30 | **4 hits** | 6 hits |
+| Enemy 2 — Heavy, 60 | 8 hits | **6 hits** |
+
+Against plate, bare hands beat the axe. Weapon choice became a read of the enemy rather
+than an upgrade path — and nothing in that table is written in code.
+
+### Design rules added this phase
+
+11. **Declare the shape once, use it twice.** The second copy is where the drift starts.
+12. **Choose fallbacks so a mistake degrades to "no effect", never to "no damage".** A
+    missing matchup table returns 1.0, not 0 — a missing asset must never make an actor
+    invulnerable, because that failure is nearly invisible in play.
+13. **Defence belongs to the defender.** The attacker states a raw number and a damage
+    type and stops. Every future damage source — spell, trap, falling rock — inherits
+    the whole armour system by calling one function.
+14. **Data, not subclasses, for things that differ only by value.** A Blueprint subclass
+    is for different *behaviour*. One class per armour type is class explosion.
+15. **A system can be correct and still be inert.** The fists log was arithmetically
+    perfect and changed nothing about the fight. Correct is not the same as felt.
+
+### Where I corrected the mentor
+
+- **Weapon type was the wrong axis; damage type is the right one.** A halberd interacts
+  with armour like an axe, a quarterstaff like a club. Armour responds to what the blow
+  *does*, not what the object is called. Weapon *category* is a separate axis, useful
+  for skill XP and animation sets — not for this.
+- **Damage type belongs on the attack, not the weapon**, so one weapon can stab on its
+  light and swing on its heavy. The mentor called this "maybe too much"; it cost one
+  field in a struct that already existed.
+- **Three damage types, not four.** Slash and Chop are near-synonyms and would be
+  second-guessed forever. The "axes are sharp but heavy" problem is better solved with
+  armour penetration as a weapon passive, which composes with everything else instead of
+  multiplying the matrix.
+- **PlayRate as a per-weapon constant is mostly redundant** — a real axe has its own
+  animations with their own wind-up. Its honest home is as a *runtime* multiplier:
+  encumbrance, haste, fatigue, an Agility-derived attack speed.
+- **Skipped the skills DataTable (4.5).** It would have taught exactly one new technique
+  (CSV round-trip) wrapped in 24 invented skill names, used by no later phase and absent
+  from the vertical slice. The mentor proposed it because the roadmap said so; the
+  roadmap's stated purpose — making the big game feel feasible — was already met by a
+  table that actually does something.
+
+### Known debt
+
+- **`ArmourValue` currently drowns out `ArmourType`.** At 30/60 against a halving point
+  of 100, the value contributes more than the type does. Three dials fix it, all in the
+  editor: widen the type table, lower the values, or raise `ArmourHalvingPoint`.
+- **The `ArmourMatchups` pointer is set in three Blueprints.** The pointer duplicates;
+  the numbers do not. Correct home is project settings (`UDeveloperSettings`), deferred
+  as a whole extra concept.
+- **`PlayRate` scales the entire montage uniformly.** No separate wind-up and recovery —
+  that needs notify states and montage sections.
+- **DataTable `.uasset` files are binary, so git cannot diff them.** A CSV source
+  alongside would be reviewable. Deliberately deferred; will matter at hundreds of rows.
+- **No armour penetration, and no weapon-category axis.** Both designed, neither built.
+- **Damage reaction logic is still duplicated** between the player and the enemy. Second
+  copy. Third copy makes it a component.
+- **`bShowAttackTrace` still defaults to true.** Turn off before packaging in Phase 7.
+
+### Phase progress
+
+- [x] **Phase 0 — Orientation**
+- [x] **Phase 1 — Input & movement**
+- [x] **Phase 2 — Stats as a component**
+- [x] **Phase 3 — Melee combat**
+- [x] **Phase 4 — Data-driven design** (DataAssets for weapons, a DataTable of armour
+      matchups, damage types, the mitigation formula; skills table deliberately skipped)
 - [ ] Phase 5 — Enemy AI & perception
 - [ ] Phase 6 — Where GAS fits (decision session)
 - [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
