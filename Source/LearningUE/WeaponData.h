@@ -30,6 +30,22 @@ struct FAttackDefinition
 	/** Stamina this attack costs to throw. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.0"))
 	float StaminaCost = 10.0f;
+
+	/**
+	 *  How fast the montage plays. 1.0 is the animation as the animator authored it,
+	 *  0.6 is 40% slower, 1.4 is faster. This is what "heavy" actually means: not just
+	 *  bigger numbers, but a longer commitment before the blow lands and a longer
+	 *  recovery after it.
+	 *
+	 *  The hit notify sits at a fixed POINT IN THE ANIMATION, not at a fixed number of
+	 *  seconds, so slowing the montage delays the hit automatically. Nothing else has
+	 *  to know this value exists.
+	 *
+	 *  ClampMin 0.1 because 0 would freeze the montage forever - the attack would never
+	 *  end, and the character would be stuck attacking until the level unloads.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack", meta = (ClampMin = "0.1"))
+	float PlayRate = 1.0f;
 };
 
 /**

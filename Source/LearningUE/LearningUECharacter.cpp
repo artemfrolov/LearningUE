@@ -451,7 +451,7 @@ bool ALearningUECharacter::StartAttack(const FAttackDefinition& Attack)
 
 	// UE idiom: ACharacter::PlayAnimMontage finds the mesh's AnimInstance for us. The
 	// montage only reaches the screen because the Anim Blueprint has a Slot node.
-	PlayAnimMontage(Attack.Montage);
+	PlayAnimMontage(Attack.Montage, Attack.PlayRate);
 
 	CurrentAttackMontage = Attack.Montage;
 	CurrentAttackDamage = Attack.Damage;
