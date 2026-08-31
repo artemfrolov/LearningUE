@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "CombatTypes.h"
 #include "StatsComponent.generated.h"
 
 /**
@@ -83,6 +84,43 @@ protected:
 	 */
 	float RegenInterval = 0.1f;
 
+	/**
+	 *  What this actor is wearing. Data, not behaviour - which is why it is a field and
+	 *  not a subclass. Two enemies of the SAME Blueprint can carry different values by
+	 *  overriding this on the placed instance in the level.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Defence")
+	EArmourType ArmourType = EArmourType::Unarmoured;
+
+	/**
+	 *  How much armour, independent of what kind. Type decides WHICH blows work; value
+	 *  decides how much protection there is at all. A leather jerkin and full plate can
+	 *  both be "Light" with very different numbers.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Defence", meta = (ClampMin = "0.0"))
+	float ArmourValue = 0.0f;
+
+	/**
+	 *  Tuning constant for the armour curve, K in  K / (K + ArmourValue).
+	 *  It is the armour value at which damage is halved: at K = 100, 100 armour means
+	 *  50% damage, 200 armour means 33%, 300 means 25%.
+	 *
+	 *  Lower K makes armour matter more. This is the single dial for how armoured the
+	 *  whole game feels, which is why it is exposed rather than hardcoded.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Defence", meta = (ClampMin = "1.0"))
+	float ArmourHalvingPoint = 100.0f;
+
+	/**
+	 *  The shared matchup table. Set to DT_ArmourMatchups in the Blueprint.
+	 *
+	 *  Every actor with stats points at the SAME asset - the pointer is duplicated, the
+	 *  numbers are not. Leave it empty and every multiplier falls back to 1.0, so armour
+	 *  type quietly stops mattering while armour value keeps working.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Defence")
+	UDataTable* ArmourMatchups = nullptr;
+
 	/** When stamina was last spent. Runtime state, so no UPROPERTY. */
 	float LastStaminaSpendTime = -1000.0f;
 
@@ -122,6 +160,23 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Stats|Health")
 	float GetHealth() const { return CurrentHealth; }
+
+	/**
+	 *  Runs an incoming blow through this actor's defences and returns what actually
+	 *  lands. Does NOT apply it - the caller still decides whether to.
+	 *
+	 *      Final = Raw x TypeEffectiveness x (K / (K + ArmourValue))
+	 *
+	 *  Lives here rather than on the attacker because defence is the DEFENDER's business.
+	 *  The attacker should not have to know that armour exists, and every future source
+	 *  of damage - a spell, a trap, a falling rock - gets this for free by calling it.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Stats|Defence")
+	float CalculateMitigatedDamage(float RawDamage, EDamageType DamageType) const;
+
+	/** What this actor is wearing. */
+	UFUNCTION(BlueprintPure, Category = "Stats|Defence")
+	EArmourType GetArmourType() const { return ArmourType; }
 
 	UFUNCTION(BlueprintPure, Category="Stats|Health")
 	float GetMaxHealth() const { return MaxHealth; }

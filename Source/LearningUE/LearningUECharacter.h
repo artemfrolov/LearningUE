@@ -84,10 +84,20 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Combat")
 	UWeaponData* EquippedWeapon;
 
-	/** The montage of whichever attack is running. Used to tell our own montage ending
-	 *  apart from any other, now that there is more than one. */
+	/**
+	 *  The swing currently in flight - a copy of the definition StartAttack accepted.
+	 *
+	 *  Two members used to live here, one for the montage and one for the damage. They
+	 *  are one member now, because the anim notify fires later and needs to know
+	 *  EVERYTHING about the attack, not two facts about it. Add a field to
+	 *  FAttackDefinition and it arrives here automatically.
+	 *
+	 *  A copy rather than a pointer: the weapon could in principle be swapped mid-swing,
+	 *  and the blow that is already travelling should still be the blow you threw.
+	 *  UPROPERTY so the garbage collector sees the montage pointer inside the struct.
+	 */
 	UPROPERTY()
-	UAnimMontage* CurrentAttackMontage;
+	FAttackDefinition CurrentAttack;
 
 	/** Flinch played when a blow lands. Additive, so it layers over whatever we are doing. */
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -96,12 +106,6 @@ protected:
 	/** Fallback shove when no flinch montage is set, in cm/s */
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float HitKnockbackImpulse = 400.0f;
-	/**
-	 *  What the swing in progress is worth. The anim notify fires without knowing which
-	 *  attack it belongs to, so the character has to remember.
-	 */
-	float CurrentAttackDamage = 0.0f;
-
 	/**
 	 *  Turn to face the camera when an attack starts. The character normally faces where
 	 *  it is RUNNING, not where you are LOOKING, so standing still it swings wherever it

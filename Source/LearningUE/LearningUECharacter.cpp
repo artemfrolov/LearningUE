@@ -128,7 +128,7 @@ void ALearningUECharacter::HandleDamaged(float Amount, AActor* Causer)
 	// That branch was written in 3.3 for a case that did not exist yet.
 	if (bIsAttacking)
 	{
-		StopAnimMontage(CurrentAttackMontage);
+		StopAnimMontage(CurrentAttack.Montage);
 	}
 
 	if (HitReactMontage)
@@ -371,21 +371,33 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 		}
 
 		HitActorsThisSwing.Add(HitActor);
-		// pass ourselves as the causer so the victim can work out which way it was hit
-		HitStats->ApplyDamage(CurrentAttackDamage, this);
 
-		UE_LOG(LogLearningUE, Warning, TEXT("Punch connected with %s"), *GetNameSafe(HitActor));
+		// Ask the VICTIM what this blow is worth against it. The attacker states the raw
+		// number and the kind of blow; armour is none of its business. Every future
+		// damage source - a spell, a trap - gets the same treatment by calling the same
+		// function.
+		const float FinalDamage = HitStats->CalculateMitigatedDamage(CurrentAttack.Damage, CurrentAttack.DamageType);
+
+		// pass ourselves as the causer so the victim can work out which way it was hit
+		HitStats->ApplyDamage(FinalDamage, this);
+
+		UE_LOG(LogLearningUE, Warning, TEXT("Hit %s for %.1f (raw %.1f, %s vs %s)"),
+			*GetNameSafe(HitActor),
+			FinalDamage,
+			CurrentAttack.Damage,
+			*StaticEnum<EDamageType>()->GetNameStringByValue(static_cast<int64>(CurrentAttack.DamageType)),
+			*StaticEnum<EArmourType>()->GetNameStringByValue(static_cast<int64>(HitStats->GetArmourType())));
 	}
 }
 
 void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	// this fires for EVERY montage, so ignore any that is not the swing we started
-	if (Montage == CurrentAttackMontage)
+	if (Montage == CurrentAttack.Montage)
 	{
 		// the attack is over whether it finished cleanly or was interrupted - either way
 		// we are no longer attacking, so the flag clears in both cases
-		CurrentAttackMontage = nullptr;
+		CurrentAttack.Montage = nullptr;
 		bIsAttacking = false;
 		return;
 	}
@@ -453,8 +465,9 @@ bool ALearningUECharacter::StartAttack(const FAttackDefinition& Attack)
 	// montage only reaches the screen because the Anim Blueprint has a Slot node.
 	PlayAnimMontage(Attack.Montage, Attack.PlayRate);
 
-	CurrentAttackMontage = Attack.Montage;
-	CurrentAttackDamage = Attack.Damage;
+	// remember the whole definition: the notify that lands this blow fires later, and by
+	// then the only record of what was thrown is this
+	CurrentAttack = Attack;
 
 	// stop sprinting, since the drain timer has no other reason to stop
 	SprintEnd();

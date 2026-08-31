@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "CombatTypes.h"
 #include "WeaponData.generated.h"
 
 class UAnimMontage;
@@ -21,6 +22,14 @@ struct FAttackDefinition
 	/** The animation this attack plays. The anim notify inside it is what deals the blow. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
 	UAnimMontage* Montage = nullptr;
+
+	/**
+	 *  What kind of blow this is. On the ATTACK, not on the weapon, so one weapon can
+	 *  stab on its light and swing on its heavy - a halberd, a bayonet, a spear butt.
+	 *  Costs nothing extra: the struct was already here.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	EDamageType DamageType = EDamageType::Slash;
 
 	/** Damage on a clean hit, before any future modifiers. ClampMin stops negative damage
 	 *  - a typo that would otherwise HEAL whatever you punched. */
