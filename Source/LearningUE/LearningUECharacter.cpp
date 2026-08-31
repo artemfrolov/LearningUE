@@ -378,15 +378,22 @@ void ALearningUECharacter::DoAttackTrace(FName BoneName)
 		// function.
 		const float FinalDamage = HitStats->CalculateMitigatedDamage(CurrentAttack.Damage, CurrentAttack.DamageType);
 
-		// pass ourselves as the causer so the victim can work out which way it was hit
-		HitStats->ApplyDamage(FinalDamage, this);
-
+		// Logged BEFORE the damage is applied, so it reads in causal order: the blow, then
+		// the health it left behind. ApplyDamage logs the new health from inside the
+		// component, so logging after put the consequence above the cause.
+		//
+		// Also mildly defensive: ApplyDamage can destroy the victim. An actor destroyed
+		// this frame is still readable, so nothing was broken - but reading it before the
+		// call means that never has to stay true.
 		UE_LOG(LogLearningUE, Warning, TEXT("Hit %s for %.1f (raw %.1f, %s vs %s)"),
 			*GetNameSafe(HitActor),
 			FinalDamage,
 			CurrentAttack.Damage,
 			*StaticEnum<EDamageType>()->GetNameStringByValue(static_cast<int64>(CurrentAttack.DamageType)),
 			*StaticEnum<EArmourType>()->GetNameStringByValue(static_cast<int64>(HitStats->GetArmourType())));
+
+		// pass ourselves as the causer so the victim can work out which way it was hit
+		HitStats->ApplyDamage(FinalDamage, this);
 	}
 }
 
