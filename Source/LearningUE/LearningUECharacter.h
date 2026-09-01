@@ -184,6 +184,31 @@ protected:
 	/** Called by the sprint timer. Pays for one interval of sprinting. */
 	void SprintDrainTick();
 
+	// --- noise ---
+
+	/**
+	 *  How often movement noise is reported, in seconds. Not a stealth dial - it is the
+	 *  resolution of the reporting. Too long and you can dash between two reports; too
+	 *  short and every enemy re-evaluates constantly for nothing.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.05"))
+	float NoiseInterval = 0.35f;
+
+	/** Below this speed, in cm/s, movement makes no sound at all. */
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.0"))
+	float SilentSpeedThreshold = 20.0f;
+
+	FTimerHandle NoiseTimer;
+
+	/**
+	 *  Tells the world how much noise we are making. Called by NoiseTimer.
+	 *
+	 *  The character does not know that AI exists - it announces a fact about itself and
+	 *  anything with ears may or may not pick it up. Same shape as the stats component
+	 *  broadcasting rather than calling the HUD.
+	 */
+	void ReportMovementNoise();
+
 public:
 
 	/** Constructor */

@@ -9,6 +9,7 @@
 
 class UAIPerceptionComponent;
 class UAISenseConfig_Sight;
+class UAISenseConfig_Hearing;
 
 /**
  *  How aware of the player this enemy is. The four states from the design doc.
@@ -81,11 +82,25 @@ protected:
 	UAISenseConfig_Sight* SightConfig;
 
 	/**
+	 *  The hearing sense's settings. Second sense on the SAME perception component -
+	 *  that is what the component is for. Both report through one delegate, told apart
+	 *  by the stimulus type.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
+	UAISenseConfig_Hearing* HearingConfig;
+
+	/**
 	 *  Called whenever something is seen or stops being seen. Fires on CHANGE, not
 	 *  continuously - one call in, one call out.
 	 */
 	UFUNCTION()
 	void HandlePerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
+
+	/** A sighting gained or lost. Can lead to an attack. */
+	void HandleSightUpdated(AActor* Actor, const FAIStimulus& Stimulus);
+
+	/** A noise heard. Never leads directly to an attack - only to looking. */
+	void HandleHearingUpdated(AActor* Actor, const FAIStimulus& Stimulus);
 
 	// --- state ---
 
@@ -102,6 +117,15 @@ protected:
 
 	/** True only while sight is actually reporting the target right now. */
 	bool bTargetVisible = false;
+
+	/**
+	 *  Whether the current alert began with EYES rather than ears.
+	 *
+	 *  It decides what an unresolved alert becomes. A glimpse that never turned into a
+	 *  proper sighting is shrugged off; a noise with nobody in view is worth walking
+	 *  over to look at. Same state, same countdown, opposite conclusions.
+	 */
+	bool bAlertedBySight = false;
 
 	/**
 	 *  Where we last had them. Not where they are - that is the entire point. This is the

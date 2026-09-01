@@ -3,7 +3,9 @@
 #include "EnemyAIController.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
+#include "Perception/AISenseConfig_Hearing.h"
 #include "Perception/AISense_Sight.h"
+#include "Perception/AISense_Hearing.h"
 #include "StatsComponent.h"
 #include "LearningUE.h"
 #include "DrawDebugHelpers.h"
@@ -49,7 +51,26 @@ AEnemyAIController::AEnemyAIController()
 	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
 	SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
 
+	// --- hearing ---
+
+	HearingConfig = CreateDefaultSubobject<UAISenseConfig_Hearing>(TEXT("HearingConfig"));
+
+	// How far a noise of full loudness carries, in cm. Loudness MULTIPLIES this, so a
+	// noise reported at 0.5 is heard from half as far. That is the whole stealth dial.
+	HearingConfig->HearingRange = 2000.0f;
+
+	// Same affiliation trap as sight, same answer.
+	HearingConfig->DetectionByAffiliation.bDetectEnemies = true;
+	HearingConfig->DetectionByAffiliation.bDetectNeutrals = true;
+	HearingConfig->DetectionByAffiliation.bDetectFriendlies = true;
+
+	// Both senses into one component. It runs them independently and reports both
+	// through the single OnTargetPerceptionUpdated delegate.
 	Perception->ConfigureSense(*SightConfig);
+	Perception->ConfigureSense(*HearingConfig);
+
+	// Which sense wins when two disagree about where a target is. Eyes beat ears: if we
+	// can see you, the sound of you somewhere else does not move our estimate.
 	Perception->SetDominantSense(SightConfig->GetSenseImplementation());
 
 	// AAIController has a PerceptionComponent slot of its own. Filling it is what makes
@@ -73,8 +94,9 @@ void AEnemyAIController::BeginPlay()
 
 void AEnemyAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// A timer outlives the object that scheduled it unless you say otherwise, and a
-	// timer firing into a destroyed controller is a crash.
+	// Tidiness rather than safety: the timer manager holds a weak reference and will not
+	// call into a destroyed object anyway. Stopping our own timer explicitly is still the
+	// habit worth having, because not every callback mechanism is that forgiving.
 	GetWorld()->GetTimerManager().ClearTimer(ThinkTimer);
 
 	Super::EndPlay(EndPlayReason);
@@ -111,7 +133,19 @@ void AEnemyAIController::SetAlertState(EEnemyAlertState NewState)
 		// stand still and stare while the countdown runs - the visible "did I see
 		// something?" beat that gives the player a chance to break away
 		StopMovement();
-		SetFocus(Target, EAIFocusPriority::Gameplay);
+
+		if (Target && bTargetVisible)
+		{
+			// Focus on the ACTOR: the head tracks them as they move.
+			SetFocus(Target, EAIFocusPriority::Gameplay);
+		}
+		else
+		{
+			// Focus on a POINT: we heard something over there and turn to look at where
+			// the sound was. Focusing on the actor here would be a cheat - the body
+			// would track a player it has no business knowing the position of.
+			SetFocalPoint(LastKnownLocation, EAIFocusPriority::Gameplay);
+		}
 		break;
 
 	case EEnemyAlertState::Searching:
@@ -150,12 +184,30 @@ void AEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulus Stim
 		return;
 	}
 
+	// One delegate, two senses. FAIStimulus carries which sense produced it, and the two
+	// mean genuinely different things - seeing you is evidence of where you ARE, hearing
+	// you is evidence of where you WERE a moment ago.
+	if (Stimulus.Type == UAISense::GetSenseID<UAISense_Hearing>())
+	{
+		HandleHearingUpdated(Actor, Stimulus);
+		return;
+	}
+
+	HandleSightUpdated(Actor, Stimulus);
+}
+
+void AEnemyAIController::HandleSightUpdated(AActor* Actor, const FAIStimulus& Stimulus)
+{
 	bTargetVisible = Stimulus.WasSuccessfullySensed();
 
 	if (bTargetVisible)
 	{
 		Target = Actor;
 		LastKnownLocation = Actor->GetActorLocation();
+
+		// From here on this alert is an EYES alert, even if ears started it. If we now
+		// lose sight, that is a lost target rather than an uninvestigated noise.
+		bAlertedBySight = true;
 
 		switch (AlertState)
 		{
@@ -195,6 +247,46 @@ void AEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulus Stim
 		default:
 			break;
 		}
+	}
+}
+
+void AEnemyAIController::HandleHearingUpdated(AActor* Actor, const FAIStimulus& Stimulus)
+{
+	// Hearing has no "stopped hearing" event - a noise happens or it does not. Sight
+	// reports both directions; ears only ever report success.
+	if (!Stimulus.WasSuccessfullySensed())
+	{
+		return;
+	}
+
+	// Where the SOUND was, which is where the player was when they made it. By the time
+	// the enemy walks over there they may be long gone, and that gap is the stealth.
+	LastKnownLocation = Stimulus.StimulusLocation;
+
+	if (bShowStateDebug)
+	{
+		DrawDebugSphere(GetWorld(), LastKnownLocation, 40.0f, 12, FColor::Cyan, false, 2.0f);
+	}
+
+	switch (AlertState)
+	{
+	case EEnemyAlertState::Relaxed:
+		// "What was that?" - notice, turn to look, but do not go hunting yet. Note we do
+		// NOT set Target: we heard a noise, we did not identify a person.
+		bAlertedBySight = false;
+		SetAlertState(EEnemyAlertState::Alerted);
+		break;
+
+	case EEnemyAlertState::Searching:
+		// A fresh noise while hunting restarts the clock and moves the destination. Keep
+		// making sound while being searched for and they never give up.
+		StateEnteredTime = GetWorld()->GetTimeSeconds();
+		break;
+
+	default:
+		// Alerted is already counting down; Attacking already has them in view. Neither
+		// needs a noise to tell it anything.
+		break;
 	}
 }
 
@@ -238,19 +330,23 @@ void AEnemyAIController::Think()
 		break;
 
 	case EEnemyAlertState::Alerted:
-		if (!bTargetVisible || !Target)
+		if (bTargetVisible && Target)
 		{
-			// perception already handles the loss; this catches a destroyed target
-			SetAlertState(EEnemyAlertState::Relaxed);
+			// keep the memory fresh while we can still see them
+			LastKnownLocation = Target->GetActorLocation();
+
+			if (TimeInState() >= ConfirmDelay)
+			{
+				SetAlertState(EEnemyAlertState::Attacking);
+			}
 			break;
 		}
 
-		// keep the memory fresh while we can still see them
-		LastKnownLocation = Target->GetActorLocation();
-
+		// Nothing in view. Wait out the same beat, then draw the conclusion the CAUSE
+		// calls for: a glimpse that never resolved is dropped, a noise gets investigated.
 		if (TimeInState() >= ConfirmDelay)
 		{
-			SetAlertState(EEnemyAlertState::Attacking);
+			SetAlertState(bAlertedBySight ? EEnemyAlertState::Relaxed : EEnemyAlertState::Searching);
 		}
 		break;
 

@@ -18,6 +18,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
+#include "Perception/AISense_Hearing.h"
 
 ALearningUECharacter::ALearningUECharacter()
 {
@@ -86,6 +87,16 @@ void ALearningUECharacter::BeginPlay()
 		UE_LOG(LogLearningUE, Error, TEXT("%s has no EquippedWeapon set - it cannot attack."), *GetName());
 	}
 
+	// Start announcing how much noise we make. A repeating timer rather than Tick: the
+	// AI only re-evaluates a few times a second anyway, so reporting faster than that
+	// would be work nothing can perceive.
+	GetWorld()->GetTimerManager().SetTimer(
+		NoiseTimer,
+		this,
+		&ALearningUECharacter::ReportMovementNoise,
+		NoiseInterval,
+		true);
+
 	// Only the local player gets a HUD. An AI-possessed copy of this character must not
 	// draw one, and in multiplayer neither must the other players' pawns.
 	if (IsLocallyControlled() && PlayerHUDClass)
@@ -103,6 +114,43 @@ void ALearningUECharacter::BeginPlay()
 			UE_LOG(LogLearningUE, Error, TEXT("Could not create the player HUD widget."));
 		}
 	}
+}
+
+void ALearningUECharacter::ReportMovementNoise()
+{
+	// the dead are quiet
+	if (!Stats->IsAlive())
+	{
+		return;
+	}
+
+	// Size2D and not Size: falling makes vertical speed, and dropping off a ledge should
+	// not be louder than running along it.
+	const float Speed = GetVelocity().Size2D();
+
+	if (Speed < SilentSpeedThreshold)
+	{
+		return;
+	}
+
+	// Loudness scales with how fast we are ACTUALLY moving, not with which key is held.
+	// Sprinting reports 1.0, walking about 0.55, and a future crouch-walk becomes quiet
+	// automatically without this function learning that crouching exists.
+	//
+	// The listener multiplies its own hearing range by this, so 0.55 is heard from just
+	// over half as far away.
+	const float Loudness = FMath::Clamp(Speed / SprintSpeed, 0.0f, 1.0f);
+
+	// MaxRange 0 means "no cap of my own" - let each listener decide how far it hears.
+	// The tag is free-form and only matters to code that filters on it; it is here
+	// because a named stimulus is far easier to read in the Gameplay Debugger.
+	UAISense_Hearing::ReportNoiseEvent(
+		GetWorld(),
+		GetActorLocation(),
+		Loudness,
+		this,
+		0.0f,
+		TEXT("Footsteps"));
 }
 
 void ALearningUECharacter::HandleDeath(AActor* Killer)
