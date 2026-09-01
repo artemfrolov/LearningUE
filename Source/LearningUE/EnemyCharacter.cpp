@@ -1,6 +1,7 @@
 // Learning project - written by hand, not from the template.
 
 #include "EnemyCharacter.h"
+#include "EnemyAIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -31,6 +32,17 @@ AEnemyCharacter::AEnemyCharacter()
 	// the same component the player and the training dummy carry. No shared game class
 	// between the three of them.
 	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
+
+	// --- the brain ---
+
+	// Which controller class to spawn for this body. The pawn does not contain its own
+	// AI; it names the controller that will drive it.
+	AIControllerClass = AEnemyAIController::StaticClass();
+
+	// And when to spawn it. PlacedInWorldOrSpawned covers both enemies already standing
+	// in the level and any spawned later. The default is Disabled, which is why an
+	// AIControllerClass alone possesses nothing and the enemy just stands there.
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 
 void AEnemyCharacter::BeginPlay()
