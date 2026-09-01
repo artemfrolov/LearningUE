@@ -23,10 +23,19 @@ AEnemyCharacter::AEnemyCharacter()
 	// Half the capsule height down, ninety degrees round.
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -89.0f), FRotator(0.0f, -90.0f, 0.0f));
 
-	// face where it is moving, not where some controller is looking - the same
-	// third-person setup the player uses
+	// Face what the CONTROLLER is looking at, not where the feet are going.
+	//
+	// The player uses bOrientRotationToMovement, which turns the body to face its own
+	// velocity - right for someone steering with a camera. An AI wants the opposite: it
+	// should keep looking at you while it circles, backs off, or walks past. So the
+	// controller decides the facing (via SetFocus) and the body turns toward it at
+	// RotationRate.
+	//
+	// With no focus set, the AI controller points itself along its current path, so a
+	// walking enemy still faces where it is going. Both cases come out right.
 	bUseControllerRotationYaw = false;
-	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 
 	// the same component the player and the training dummy carry. No shared game class
