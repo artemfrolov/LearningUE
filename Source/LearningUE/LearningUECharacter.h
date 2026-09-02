@@ -69,6 +69,33 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Movement")
 	float SprintSpeed = 900.0f;
 
+	/**
+	 *  Movement speed while sneaking, in cm/s. The stealth number: loudness is speed
+	 *  divided by SprintSpeed, so 200 reports about 0.22 and is heard from roughly 4.4m
+	 *  instead of the 11m a normal walk carries.
+	 */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float SneakSpeed = 200.0f;
+
+	/** Sneak Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* SneakAction;
+
+	/** True while the sneak key is held. */
+	bool bIsSneaking = false;
+
+	/** True while sprinting. Was implicit in MaxWalkSpeed until a third speed existed. */
+	bool bIsSprinting = false;
+
+	/**
+	 *  The single place that decides how fast we move.
+	 *
+	 *  Three states now want to set MaxWalkSpeed, and three callers each setting it
+	 *  themselves is how "attacking while sneaking silently cancels the sneak" gets in.
+	 *  This derives the speed from the flags instead, so no caller can disagree.
+	 */
+	void UpdateMaxWalkSpeed();
+
 	/** Attack Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* AttackAction;
@@ -271,6 +298,12 @@ protected:
 
 	/** Called when the sprint input ends */
 	void SprintEnd();
+
+	/** Called when the sneak input starts */
+	void SneakStart();
+
+	/** Called when the sneak input ends */
+	void SneakEnd();
 
 	/** Called when the dodge input fires */
 	void Dodge();

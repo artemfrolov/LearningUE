@@ -239,6 +239,9 @@ void ALearningUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		//   Canceled  = released BEFORE the hold threshold, i.e. a tap
 		//   Triggered = the hold threshold was reached
 		// This is the click-vs-long-press pattern the dream game's alternate casts need.
+		EnhancedInputComponent->BindAction(SneakAction, ETriggerEvent::Started, this, &ALearningUECharacter::SneakStart);
+		EnhancedInputComponent->BindAction(SneakAction, ETriggerEvent::Completed, this, &ALearningUECharacter::SneakEnd);
+
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Canceled, this, &ALearningUECharacter::Attack);
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ALearningUECharacter::HeavyAttack);
 	}
@@ -324,7 +327,9 @@ void ALearningUECharacter::SprintStart()
 	}
 
 	// raise the movement component's speed cap for as long as the key is held
-	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	bIsSprinting = true;
+	UpdateMaxWalkSpeed();
+
 	GetWorld()->GetTimerManager().SetTimer(
 		SprintDrainTimer,
 		this,
@@ -335,9 +340,44 @@ void ALearningUECharacter::SprintStart()
 
 void ALearningUECharacter::SprintEnd()
 {
-	// restore the normal cap
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	// restore whatever the cap should be WITHOUT sprint - which is not always WalkSpeed
+	// any more. Attacking calls this, and attacking out of a sneak used to leave you
+	// walking at full speed and wondering why the guards heard you.
+	bIsSprinting = false;
+	UpdateMaxWalkSpeed();
+
 	GetWorld()->GetTimerManager().ClearTimer(SprintDrainTimer);
+}
+
+void ALearningUECharacter::SneakStart()
+{
+	bIsSneaking = true;
+	UpdateMaxWalkSpeed();
+}
+
+void ALearningUECharacter::SneakEnd()
+{
+	bIsSneaking = false;
+	UpdateMaxWalkSpeed();
+}
+
+void ALearningUECharacter::UpdateMaxWalkSpeed()
+{
+	// Sprint beats sneak deliberately, and the order of these two branches is the whole
+	// rule: hold sneak, tap sprint to dash across a gap, release sprint and you are back
+	// to creeping. No mutual exclusion, no cancelling, no flag to forget to clear.
+	float NewSpeed = WalkSpeed;
+
+	if (bIsSprinting)
+	{
+		NewSpeed = SprintSpeed;
+	}
+	else if (bIsSneaking)
+	{
+		NewSpeed = SneakSpeed;
+	}
+
+	GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
 }
 
 void ALearningUECharacter::DoAttackTrace(FName BoneName)

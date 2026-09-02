@@ -7,7 +7,6 @@
 #include "Perception/AISense_Sight.h"
 #include "Perception/AISense_Hearing.h"
 #include "StatsComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "LearningUE.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
@@ -321,22 +320,6 @@ void AEnemyAIController::Think()
 		if (TargetStats && !TargetStats->IsAlive())
 		{
 			SetAlertState(EEnemyAlertState::Relaxed);
-		}
-	}
-
-	// TEMPORARY, 5.3 only. The anim blueprint decides whether to play a run animation
-	// from GroundSpeed AND CurrentAcceleration. The enemy is plainly moving, so speed is
-	// fine; this exists to find out what acceleration reads as, because AI path following
-	// drives a character differently from a keyboard.
-	if (bLogLocomotionValues)
-	{
-		if (const UCharacterMovementComponent* Move = MyPawn->FindComponentByClass<UCharacterMovementComponent>())
-		{
-			UE_LOG(LogLearningUE, Warning, TEXT("LOCO %s  speed=%.0f  accel=%.0f  maxwalk=%.0f"),
-				*GetNameSafe(MyPawn),
-				MyPawn->GetVelocity().Size2D(),
-				Move->GetCurrentAcceleration().Size(),
-				Move->MaxWalkSpeed);
 		}
 	}
 
