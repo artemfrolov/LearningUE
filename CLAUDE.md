@@ -120,95 +120,175 @@ The dream game — an island action RPG, Elder Scrolls-inspired but systems-firs
 When teaching, prefer examples that serve this game. If I ask for something that
 conflicts with good scope discipline, remind me of the vertical slice.
 
-## The Vertical Slice (the actual goal of this project)
+## The Vertical Slice — built, and now a sandbox
 
-One small level proving the core loop:
-a third-person character with **Health / Stamina / Mana** bars → **sidestep dodge**
-(stamina cost) → **one sword** with light/heavy attacks and hit detection → **one
-enemy** with basic AI and the **four detection states** → character death and enemy
-death. Nothing more. Every phase below feeds this slice.
+The original goal: one small level proving the core loop — a third-person character with
+Health / Stamina / Mana, a dodge costing stamina, one weapon with light and heavy
+attacks, one enemy with basic AI and four detection states, and death on both sides.
 
-## The Showcase Build (the thing I can actually hand to someone)
+**Delivered by the end of Phase 5**, with three honest gaps:
 
-The vertical slice must end as a **packaged Windows build I can install on my son's
-PC** and say "your dad made this — and you could too." A slice that only runs inside
-the editor is not something you can give to a person.
+- **No Mana.** Health and stamina exist; mana was deferred as a third near-copy and never
+  became necessary.
+- **No sword.** Attacks are unarmed. Weapons exist as *data* (`DA_Fists`, `DA_Axe`) with
+  damage, reach, stamina cost, play rate and damage type — but nothing is held in hand.
+- **The dodge is a roll, not a sidestep**, with no invincibility frames.
 
-This adds a small amount of scope, on purpose:
+From Phase 6 the slice stops being the goal and becomes the **sandbox**: a working game
+to hang new editor domains on. Combat feel was explicitly ruled out as a goal on
+2026-09-02 — the systems are sound, and what is missing (hit stop, sound, blending,
+i-frames) is animation and audio work rather than systems work.
 
-- A title screen with Start and Quit. Nothing fancy: a background and two buttons.
-- A coherent two-minute experience: spawn, fight the one enemy, win or die, restart.
-- A project name, an icon, and an .exe that launches by double-clicking it.
+## The Showcase Build — deferred to the real project
 
-**Package twice.** A throwaway build at the end of Phase 1, while the project is still
-trivial, purely to prove the pipeline works — first packages fail in surprising ways
-(missing default map, cook errors, absent redistributables) and I want to hit those
-while there is almost nothing to debug. Then the real build in Phase 7.
+The original plan ended this project as a packaged Windows build to install on my son's
+PC. **Decided 2026-09-02: dropped from this project.** The packaging pipeline was
+already proven with a throwaway build at the end of Phase 1, so the knowledge is banked;
+what is left is mechanical, and I would want help with it on the real game regardless.
+
+The goal itself is not abandoned — it moves to the real project, where the thing being
+handed over is worth handing over. Do not quietly re-add packaging phases here.
 
 ## Learning Roadmap
 
-Work through phases in order. Start each phase by explaining its concepts, end it
-with the phase's review questions (rule 4c). Mark progress in SESSION_LOG.md. Where an
-old phase description below says "Exercise: I do X", read it as "you build X and walk
-me through it" unless it is editor or install work, which stays mine (rule 5a).
+**Phases 0–5 are complete.** They built a vertical slice: a third-person character with
+health and stamina, a HUD, sprint, a root-motion dodge, light and heavy melee attacks
+driven by anim notifies, data-driven weapons and armour matchups, and an enemy with
+sight, hearing, four detection states and an attack of its own.
 
-**The standard loop: read → strip → rebuild → compare.** This project began from the
-Third Person template *with all variants included*, so Epic has already written a
-working version of several things on this roadmap (SESSION_LOG.md has the inventory).
-Do not skip past those, and do not let me copy them. For each one:
+**Course correction, 2026-09-02.** The original roadmap deepened one vertical slice. It
+worked, and it ran out of teaching value: sessions had become *write C++ → build → set a
+dropdown in a Blueprint → repeat*. I can now read C++ fluently enough that watching it be
+written teaches me more than writing it myself would, and the real gap is **the editor** —
+whole domains of it I have never opened. Phases 6+ are reorganised around **one editor
+domain per phase, minimum viable slice of each**.
 
-1. **Read** — dissect Epic's implementation together; name every unfamiliar construct.
-2. **Strip** — separate what is essential to the idea from what is incidental polish.
-3. **Rebuild** — you write our own, simpler version from a blank class, and explain
-   every decision in it: what it does, why that way, what the alternative was.
-4. **Compare** — diff ours against Epic's; discuss what they knew that we didn't.
+The combat slice is now a sandbox to hang new domains on, not the thing being improved.
+Do not propose combat polish; it was explicitly ruled out as a goal on 2026-09-02.
 
-Step 4 is where the learning actually lands. Do not let me skip it.
+### Method for phases 6+
 
-**Phase 0 — Orientation (editor + project anatomy).** What is in a UE project folder
-(Source, Content, Config, .uproject; what's regenerable). Actors, Components, the
-World. Blueprint vs C++ and how they cooperate (C++ base classes, Blueprint
-subclasses for tweaking). How the template's ThirdPersonCharacter works. Live Coding
-vs full rebuilds. _Exercise: I find and change the character's walk speed in two
-different ways (property in editor, value in C++)._
+- **All C++ is written by Claude and explained** (rules 5, 5a). No exercises without an
+  exact precedent.
+- **All editor work is mine**, with complete step-by-step instructions.
+- **Editor UI facts must be verified, not remembered.** UE 5.8 has drifted from the
+  tutorials and from Claude's training data. Verify against the running editor via MCP
+  where possible; flag uncertainty otherwise. Known corrections are in the table below.
 
-**Phase 1 — Input & movement (Enhanced Input).** Input Actions and Mapping Contexts.
-Add a sprint (hold Shift). Then the sidestep dodge: root-motion-free impulse first,
-animation later. _Serves: the control grammar (LMB/RMB/Q/F scheme)._
+### UE 5.8 facts that contradict most tutorials
 
-**Phase 2 — Stats as a component.** A UActorComponent holding Health/Stamina/Mana
-with regen, delegates for change events, UMG HUD with three bars. Dodge consumes
-stamina; sprint drains it. _Serves: Endurance/Arcane/Will resource design. This is
-also where UPROPERTY/UFUNCTION and delegates get properly explained._
+Verified against the installed engine on 2026-09-02. Trust these over any tutorial.
 
-**Phase 3 — Melee combat.** Animation Montages, anim notifies, weapon trace during
-swing windows, applying damage, hit reactions, death. Light vs heavy attack
-(click vs hold — the exact pattern the game's alternate-cast design uses).
-_Serves: weapon identity and combat feel._
+| Thing | Reality in UE 5.8 |
+|---|---|
+| Content Browser create menu | **"Create Advanced Asset" no longer exists.** One **Create** section; categories are plain submenus. Renamed: Sounds→**Audio**, AI→**Artificial Intelligence**, Misc→**Miscellaneous**. New: **Data, Input, Foliage, Cinematics** |
+| Reset-to-default indicator | A small **grey curved-back arrow at the FAR RIGHT of the row**, only when the value differs from default. Not yellow, not on the left. Details panel also has an **All / Favorites / Modified** filter bar |
+| Components panel button | Labelled **`+ Add`**, not "Add Component" |
+| Build Lighting | Does nothing — `r.AllowStaticLighting=False`. **Lumen is fully dynamic; there is nothing to bake** |
+| Materials | **Substrate is ON.** The Material Editor differs from every pre-5.7 tutorial |
+| Audio | 5.8 moved Windows to **WASAPI**; PIE can go silent via the default Reverb Submix. Fixes: `au.DisableReverbSubmix=1`, or revert with `AudioMixerModuleName=AudioMixerXAudio2` |
+| Particles | **Niagara only.** Cascade still opens (enabled plugin) but is dead |
+| World Partition | ON for the template maps — that is `__ExternalActors__` and the strange git diffs |
+| Packaging | **Platforms** dropdown, not `File → Package Project`. `MapsToCook` lists only ONE map |
+| Live Coding | Enabled on this machine. Cannot handle new files or header changes — close the editor and rebuild |
+| AI | Epic's own 5.8 combat AI is **StateTree**, not Behavior Trees |
+| Engine lifecycle | **5.8 is the last planned UE5 release**; UE6 next, 5.x gets bug fixes only |
 
-**Phase 4 — Data-driven design.** DataTables / DataAssets for weapon definitions
-(damage, speed, stamina cost, type). Move hardcoded values into data. Preview of how
-24 skills and crystal affinities become rows, not code. _Serves: the entire 8/8/8
-system; this is the phase that makes the big game feel feasible._
+### Phase 6 — Blueprint, properly
 
-**Phase 5 — Enemy AI & perception.** AIController, Behavior Trees, Blackboard,
-AIPerception (sight cone + hearing). Implement the four detection states.
-_Serves: the sneak/detection design directly._
+The biggest gap and the biggest fear. Most Unreal work happens here.
 
-**Phase 6 — Where GAS fits.** Introduction to the Gameplay Ability System: attributes,
-abilities, gameplay effects, tags. Compare with what we hand-built in Phases 2–3 and
-discuss what the real project should use. No big implementation — a decision session.
-_Serves: spells, techniques, DoTs, concentration — the systems the dream game runs on._
+- **6.1** Anatomy: Class Settings vs Class Defaults, the `+ Add` button, all eight My
+  Blueprint sections, Viewport / Construction Script / Event Graph
+- **6.2** Event Graph grammar: events, nodes, execution wires vs data wires, variables
+- **6.3** A pickup built **entirely in Blueprint** — overlap, heal, destroy. Zero C++
+- **6.4** Construction Script: an actor that configures itself when placed
+- **6.5** Functions, macros, Blueprint Interfaces
+- **6.6** Event Dispatchers — Blueprint's version of the C++ delegates from Phase 2
+- **6.7** The boundary: `BlueprintCallable` / `BlueprintImplementableEvent` / `BlueprintNativeEvent`
+- **6.8** The Create menu as it actually is in 5.8 — the twelve entries that matter
 
-**Phase 7 — Ship it.** Packaging and cooking: Development vs Shipping builds, the
-default-map trap, what actually lands in the output folder and why it is that large.
-A minimal main menu (UMG widget, Start/Quit, level load). Project name and icon.
-Produce a Windows build that runs by double-click on a machine with no Unreal
-installed. _Exercise: I install it on my son's PC and watch someone who has never seen
-it try to play it._ _Serves: the reason any of this was worth doing._
+### Phase 7 — Audio
 
-After Phase 7: the slice is assembled and shippable. Then decide together what the
-real project's foundation looks like — and start it clean.
+- **7.1** The WASAPI silence trap first, so dead speakers never look like my mistake
+- **7.2** Sound Wave → Sound Cue → MetaSound, in that order
+- **7.3** Footsteps via **anim notify** — the real fix for Phase 5's distance approximation
+- **7.4** Impacts, swings, death sounds on existing events
+- **7.5** Attenuation, sound classes, a master mix
+- **7.6** Audio Insights as the debugging tool
+
+### Phase 8 — Materials and post-process
+
+- **8.1** Material editor with Substrate on, and what that changes
+- **8.2** Material Instances and parameters
+- **8.3** A hit-flash on damaged enemies, driven from C++
+- **8.4** Post Process Volume: a low-health vignette
+
+### Phase 9 — UI and menus
+
+Plain UMG throughout. CommonUI left beta in 5.8 but is for multi-layered cross-platform
+UI; name it as the upgrade trigger, do not use it.
+
+- **9.1** UMG properly: canvas, anchors, containers, Palette vs Library
+- **9.2** Main menu and level loading
+- **9.3** Pause menu and input modes
+- **9.4** Death and restart — closes the gameplay loop
+- **9.5** A HUD worth looking at
+
+### Phase 10 — The world: level and lighting
+
+- **10.1** Lumen, and why Build Lighting is greyed out
+- **10.2** Directional Light, Sky Atmosphere, Sky Light, Height Fog, Post Process
+- **10.3** Blockout in Modeling Mode
+- **10.4** Foliage
+- **10.5** World Partition — the 488 files and the git diffs
+
+### Phase 11 — VFX with Niagara
+
+- **11.1** Niagara anatomy, using the template's own VFX as reading material
+- **11.2** A hit impact spawned at the trace location
+- **11.3** An ambient looping effect
+
+### Phase 12 — Animation, deeper
+
+- **12.1** Read `ABP_Unarmed` properly: state machines and transition rules
+- **12.2** Blend Spaces
+- **12.3** New animations from Fab/Mixamo via the IK Retargeter
+- **12.4** Foot IK with Control Rig — pays off Phase 3's debt
+
+### Phase 13 — Framework and persistence
+
+- **13.1** GameMode / GameState / PlayerState — what each is actually for
+- **13.2** SaveGame (`USaveGame` + `UGameplayStatics`, unchanged in 5.8)
+- **13.3** Level transitions
+
+### Phase 14 — Planning the real project
+
+Not a lesson. The founding documents for the real game, written into its new repo.
+This is the phase everything else was preparation for.
+
+- **14.1** **Foundations.** GAS vs hand-built, walked through against the code I actually
+  wrote (StatsComponent≈AttributeSet, TryConsumeStamina≈Cost, DodgeCooldown≈Cooldown,
+  bIsAttacking≈GameplayTag, CalculateMitigatedDamage≈GameplayEffect). Engine version and
+  UE5→UE6 timing. Where C++ ends and Blueprint begins, as written policy
+- **14.2** **Structure and conventions.** Folders, naming, modules, and source control —
+  including **Git LFS**, which this project should have used and did not
+- **14.3** **Tooling.** Which MCP servers earn their place beyond the UE one, what each
+  gives us, and the risks (the UE MCP broke packaging once already)
+- **14.4** **How we work.** Which CLAUDE.md rules survive, the session-log habit, what
+  Claude does versus what I review, how work splits when there is more of it
+- **14.5** **The development plan.** Milestone order, the first vertical slice of the real
+  game, scope discipline
+
+Bringing a second model (Fable) in is worth it for **14.1 and 14.5** specifically —
+independent judgement on the GAS decision and the milestone order. 14.2–14.4 are
+mechanical; one of us is enough.
+
+### Not in the plan, deliberately
+
+Sequencer and cinematics · physics and destruction · multiplayer · profiling tools ·
+PCG procedural generation. All defensible additions; none essential. PCG is production-
+ready and on by default in 5.8, and is the most interesting of them for an island game.
 
 ## Practical conventions
 
