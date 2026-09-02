@@ -10,6 +10,7 @@
 class UAIPerceptionComponent;
 class UAISenseConfig_Sight;
 class UAISenseConfig_Hearing;
+class UMeleeAttackComponent;
 
 /**
  *  How aware of the player this enemy is. The four states from the design doc.
@@ -60,6 +61,17 @@ protected:
 
 	/** Subscribe to perception and start the think timer */
 	virtual void BeginPlay() override;
+
+	/**
+	 *  Runs when this controller takes over a body. The right place to look up anything
+	 *  that belongs to the PAWN rather than to us - the pawn does not exist yet in the
+	 *  constructor, and BeginPlay on a controller can run before it has one.
+	 */
+	virtual void OnPossess(APawn* InPawn) override;
+
+	/** The possessed body's attack component, found once on possession. */
+	UPROPERTY()
+	UMeleeAttackComponent* MeleeAttack = nullptr;
 
 	/** Stop the think timer when this controller goes away */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -168,6 +180,13 @@ protected:
 	/** Seconds spent searching before giving up and relaxing. */
 	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))
 	float SearchDuration = 6.0f;
+
+	/** Seconds between swings. The window in which backing off is safe. */
+	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))
+	float AttackCooldown = 2.0f;
+
+	/** When we last threw a punch. Runtime state. */
+	float LastAttackTime = -1000.0f;
 
 	/** How close to get before stopping, in cm. Melee reach, roughly. */
 	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))

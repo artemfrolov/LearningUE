@@ -7,6 +7,7 @@
 #include "Perception/AISense_Sight.h"
 #include "Perception/AISense_Hearing.h"
 #include "StatsComponent.h"
+#include "MeleeAttackComponent.h"
 #include "LearningUE.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
@@ -100,6 +101,22 @@ void AEnemyAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	GetWorld()->GetTimerManager().ClearTimer(ThinkTimer);
 
 	Super::EndPlay(EndPlayReason);
+}
+
+void AEnemyAIController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	// Ask the body what it HAS. The controller does not care whether it is driving an
+	// AEnemyCharacter or anything else - only whether the thing it is driving can punch.
+	// A body with no attack component simply chases and never swings, which is a perfectly
+	// good unarmed enemy.
+	MeleeAttack = InPawn ? InPawn->FindComponentByClass<UMeleeAttackComponent>() : nullptr;
+
+	if (!MeleeAttack)
+	{
+		UE_LOG(LogLearningUE, Warning, TEXT("%s has no MeleeAttackComponent - it will chase but never attack."), *GetNameSafe(InPawn));
+	}
 }
 
 float AEnemyAIController::TimeInState() const
@@ -363,6 +380,15 @@ void AEnemyAIController::Think()
 			LastKnownLocation = Target->GetActorLocation();
 		}
 
+		// A swing is a commitment for us exactly as it is for the player. Standing still
+		// for the whole animation is what gives you a window to step out of reach, and it
+		// is the difference between a fight and a shoving match.
+		if (MeleeAttack && MeleeAttack->IsAttacking())
+		{
+			StopMovement();
+			break;
+		}
+
 		// Re-issue the move order only when we are actually out of range. Firing MoveTo
 		// at an unchanged goal every think is how an AI ends up stuttering in place:
 		// each order cancels the previous path and starts a new one.
@@ -373,12 +399,39 @@ void AEnemyAIController::Think()
 			// MoveToActor tracks a MOVING goal - it repaths on its own as the player
 			// runs, which MoveToLocation would not do.
 			MoveToActor(Target, AttackRange);
+			break;
 		}
-		else
+
+		StopMovement();
+
+		// --- in reach: should we swing? ---
+
+		// Only at something we can actually SEE. Without this the enemy would punch the
+		// remembered position of a player standing behind a wall, because Attacking keeps
+		// its target for a moment after sight is lost.
+		if (!bTargetVisible)
 		{
-			// in reach. There is nothing to hit with yet - the enemy has no attack until
-			// 5.4 - so it closes and waits.
-			StopMovement();
+			break;
+		}
+
+		if (!MeleeAttack)
+		{
+			break;
+		}
+
+		const float Now = GetWorld()->GetTimeSeconds();
+
+		if (Now - LastAttackTime < AttackCooldown)
+		{
+			break;
+		}
+
+		// StartLightAttack can still refuse - no weapon, no stamina, already swinging.
+		// Only record the time if a punch actually happened, or a refused swing would
+		// start the cooldown and the enemy would stand there paying for nothing.
+		if (MeleeAttack->StartLightAttack())
+		{
+			LastAttackTime = Now;
 		}
 		break;
 	}

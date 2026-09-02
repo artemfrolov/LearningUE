@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "LearningUE.h"
 #include "StatsComponent.h"
+#include "MeleeAttackComponent.h"
 #include "TimerManager.h"
 
 AEnemyCharacter::AEnemyCharacter()
@@ -47,6 +48,10 @@ AEnemyCharacter::AEnemyCharacter()
 	// between the three of them.
 	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
 
+	// One line, and this body can fight. Compare with what the player character had to
+	// carry before 5.4a extracted it.
+	MeleeAttack = CreateDefaultSubobject<UMeleeAttackComponent>(TEXT("MeleeAttack"));
+
 	// --- the brain ---
 
 	// Which controller class to spawn for this body. The pawn does not contain its own
@@ -77,6 +82,10 @@ void AEnemyCharacter::HandleDamaged(float Amount, AActor* Causer)
 	{
 		return;
 	}
+
+	// Poise, same rule the player lives under since 3.7: being hit mid-swing costs you
+	// the swing and the stamina. One line here, because the component owns the swing.
+	MeleeAttack->CancelAttack();
 
 	// if a usable flinch montage is ever set, prefer it over the shove
 	if (HitReactMontage)
