@@ -12,6 +12,7 @@
 #include "InputActionValue.h"
 #include "LearningUE.h"
 #include "StatsComponent.h"
+#include "MeleeAttackComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
@@ -57,6 +58,7 @@ ALearningUECharacter::ALearningUECharacter()
 	// Create the stats component. No SetupAttachment call: a UActorComponent has no
 	// transform, so there is nothing to attach it to - it just belongs to this actor.
 	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
+	MeleeAttack = CreateDefaultSubobject<UMeleeAttackComponent>(TEXT("MeleeAttack"));
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character)
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
@@ -78,13 +80,6 @@ void ALearningUECharacter::BeginPlay()
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		AnimInstance->OnMontageEnded.AddDynamic(this, &ALearningUECharacter::HandleMontageEnded);
-	}
-
-	// The dropdown-left-empty failure: correct code that silently does nothing. Caught at
-	// spawn rather than on the first click, so it is obvious before you go looking.
-	if (!EquippedWeapon)
-	{
-		UE_LOG(LogLearningUE, Error, TEXT("%s has no EquippedWeapon set - it cannot attack."), *GetName());
 	}
 
 	// Measure travel from where we start, or the first sample counts the whole distance
@@ -197,13 +192,9 @@ void ALearningUECharacter::HandleDamaged(float Amount, AActor* Causer)
 	{
 		return;
 	}
-	// poise: an attack in progress dies here. No need to clear bIsAttacking - stopping a
-	// montage ends it as INTERRUPTED, which fires HandleMontageEnded, which clears it.
-	// That branch was written in 3.3 for a case that did not exist yet.
-	if (bIsAttacking)
-	{
-		StopAnimMontage(CurrentAttack.Montage);
-	}
+	// poise: an attack in progress dies here. The component owns the swing, so it owns
+	// cancelling it - we only say that being hurt is a reason to.
+	MeleeAttack->CancelAttack();
 
 	if (HitReactMontage)
 	{
@@ -340,8 +331,8 @@ void ALearningUECharacter::DoJumpEnd()
 void ALearningUECharacter::SprintStart()
 {
 	// no sprinting out of an attack - attacking is a commitment. Free check, so it goes
-	// above the one that spends stamina.
-	if (bIsAttacking)
+	// above the one that spends stamina. We no longer OWN this fact, so we ask for it.
+	if (MeleeAttack->IsAttacking())
 	{
 		return;
 	}
@@ -406,201 +397,45 @@ void ALearningUECharacter::UpdateMaxWalkSpeed()
 	GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
 }
 
-void ALearningUECharacter::DoAttackTrace(FName BoneName)
-{
-	// The anim notify fires straight off the animation timeline and knows nothing about
-	// weapons. With no weapon there is no reach and no radius, so there is no blow to
-	// resolve - bail before touching the world.
-	if (!EquippedWeapon)
-	{
-		return;
-	}
-
-	// pulled into locals once: read four times below, and it keeps the geometry lines
-	// readable rather than three-deep in arrows
-	const float TraceDistance = EquippedWeapon->TraceDistance;
-	const float TraceRadius = EquippedWeapon->TraceRadius;
-
-	// start at the fist, reach forward. Note the direction comes from the CHARACTER, not
-	// from the fist's motion - the same simplification Epic made. Predictable and cheap;
-	// the cost is that a target directly beside you during a wide swing can be missed.
-	const FVector TraceStart = GetMesh()->GetSocketLocation(BoneName);
-	const FVector TraceEnd = TraceStart + (GetActorForwardVector() * TraceDistance);
-
-	// which KINDS of thing can be punched. Pawn covers characters; WorldDynamic covers
-	// movable props like a training dummy or a crate. Static world geometry is absent on
-	// purpose - punching a wall should find nothing.
-	FCollisionObjectQueryParams ObjectParams;
-	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
-	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-
-	// a sphere dragged from start to end, rather than a hairline ray - a thin ray between
-	// two frames of a fast animation slips straight through people
-	const FCollisionShape Sphere = FCollisionShape::MakeSphere(TraceRadius);
-
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(this);
-
-	TArray<FHitResult> Hits;
-	GetWorld()->SweepMultiByObjectType(Hits, TraceStart, TraceEnd, FQuat::Identity, ObjectParams, Sphere, QueryParams);
-
-	if (bShowAttackTrace)
-	{
-		// Draw what is actually tested: a sweep is one continuous CAPSULE, not two
-		// separate spheres. Half height covers the travel plus a radius at each cap.
-		const FVector Direction = (TraceEnd - TraceStart).GetSafeNormal();
-		const FVector Centre = (TraceStart + TraceEnd) * 0.5f;
-		const float HalfHeight = (TraceDistance * 0.5f) + TraceRadius;
-
-		// MakeFromZ because a capsule's axis is its local Z
-		const FQuat Orientation = FRotationMatrix::MakeFromZ(Direction).ToQuat();
-
-		// 2 seconds so it can be studied after the swing is over
-		DrawDebugCapsule(GetWorld(), Centre, HalfHeight, TraceRadius, Orientation, FColor::Yellow, false, 2.0f);
-	}
-
-	for (const FHitResult& Hit : Hits)
-	{
-		AActor* HitActor = Hit.GetActor();
-
-		if (!HitActor)
-		{
-			continue;
-		}
-
-		// one sweep can report the same actor once per component it touched, so without
-		// this a two-collider dummy takes double damage from a single punch
-		if (HitActorsThisSwing.Contains(HitActor))
-		{
-			continue;
-		}
-
-		// ask what it HAS, not what it IS - anything carrying stats can be hurt,
-		// anything else is scenery
-		UStatsComponent* HitStats = HitActor->FindComponentByClass<UStatsComponent>();
-
-		if (!HitStats)
-		{
-			continue;
-		}
-
-		HitActorsThisSwing.Add(HitActor);
-
-		// Ask the VICTIM what this blow is worth against it. The attacker states the raw
-		// number and the kind of blow; armour is none of its business. Every future
-		// damage source - a spell, a trap - gets the same treatment by calling the same
-		// function.
-		const float FinalDamage = HitStats->CalculateMitigatedDamage(CurrentAttack.Damage, CurrentAttack.DamageType);
-
-		// Logged BEFORE the damage is applied, so it reads in causal order: the blow, then
-		// the health it left behind. ApplyDamage logs the new health from inside the
-		// component, so logging after put the consequence above the cause.
-		//
-		// Also mildly defensive: ApplyDamage can destroy the victim. An actor destroyed
-		// this frame is still readable, so nothing was broken - but reading it before the
-		// call means that never has to stay true.
-		UE_LOG(LogLearningUE, Warning, TEXT("Hit %s for %.1f (raw %.1f, %s vs %s)"),
-			*GetNameSafe(HitActor),
-			FinalDamage,
-			CurrentAttack.Damage,
-			*StaticEnum<EDamageType>()->GetNameStringByValue(static_cast<int64>(CurrentAttack.DamageType)),
-			*StaticEnum<EArmourType>()->GetNameStringByValue(static_cast<int64>(HitStats->GetArmourType())));
-
-		// pass ourselves as the causer so the victim can work out which way it was hit
-		HitStats->ApplyDamage(FinalDamage, this);
-	}
-}
-
-void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
-{
-	// this fires for EVERY montage, so ignore any that is not the swing we started
-	if (Montage == CurrentAttack.Montage)
-	{
-		// the attack is over whether it finished cleanly or was interrupted - either way
-		// we are no longer attacking, so the flag clears in both cases
-		CurrentAttack.Montage = nullptr;
-		bIsAttacking = false;
-		return;
-	}
-
-	if (Montage == DodgeMontage)
-	{
-		bIsDodging = false;
-
-		// put the scale back, or the next root-motion animation is silently shortened
-		SetAnimRootMotionTranslationScale(1.0f);
-	}
-}
-
 void ALearningUECharacter::Attack()
 {
-	// silent: BeginPlay already shouted about the missing weapon, and repeating it on
-	// every click would bury the one message that matters
-	if (!EquippedWeapon)
-	{
-		return;
-	}
-
-	StartAttack(EquippedWeapon->LightAttack);
+	TryAttack(false);
 }
 
 void ALearningUECharacter::HeavyAttack()
 {
-	if (!EquippedWeapon)
+	TryAttack(true);
+}
+
+void ALearningUECharacter::TryAttack(bool bHeavy)
+{
+	// Dodging is OUR state, not the component's - it knows nothing about rolling. So the
+	// refusal that depends on it has to happen here, before we ask.
+	if (bIsDodging)
 	{
 		return;
 	}
 
-	// same machinery, a different definition - and neither line mentions a number
-	StartAttack(EquippedWeapon->HeavyAttack);
-}
+	// The component decides whether the swing happens: montage, weapon, stamina, and
+	// whether one is already running are all its business.
+	const bool bSwung = bHeavy ? MeleeAttack->StartHeavyAttack() : MeleeAttack->StartLightAttack();
 
-bool ALearningUECharacter::StartAttack(const FAttackDefinition& Attack)
-{
-	// --- free refusals first. None of these change anything. ---
-
-	// one action at a time: no restarting a swing, and no swinging out of a dodge
-	if (bIsAttacking || bIsDodging)
+	if (!bSwung)
 	{
-		return false;
+		return;
 	}
 
-	// Validate the montage BEFORE spending stamina. PlayAnimMontage can only fail for
-	// these two reasons, so ruling them out here means the committing call below cannot
-	// fail after we have already been charged for it.
-	if (!Attack.Montage || !GetMesh()->GetAnimInstance())
-	{
-		return false;
-	}
-
-	// --- the committing check: asking costs stamina ---
-
-	if (!Stats->TryConsumeStamina(Attack.StaminaCost))
-	{
-		return false;
-	}
-
-	// --- nothing below this line may fail ---
-
-	// UE idiom: ACharacter::PlayAnimMontage finds the mesh's AnimInstance for us. The
-	// montage only reaches the screen because the Anim Blueprint has a Slot node.
-	PlayAnimMontage(Attack.Montage, Attack.PlayRate);
-
-	// remember the whole definition: the notify that lands this blow fires later, and by
-	// then the only record of what was thrown is this
-	CurrentAttack = Attack;
+	// --- from here on the swing is committed, and these are the character's own reactions ---
 
 	// stop sprinting, since the drain timer has no other reason to stop
 	SprintEnd();
-	bIsAttacking = true;
-
-	// fresh swing, so nobody has been hit by it yet
-	HitActorsThisSwing.Reset();
 
 	// Aim the attack where the player is looking. Yaw only - copying the camera's pitch
-	// would tip the character over when you look up. Done after the montage is confirmed
-	// so a failed attack never turns you, and before root motion moves anything this
+	// would tip the character over when you look up. Done after the swing is confirmed
+	// so a refused attack never turns you, and before root motion moves anything this
 	// frame, so the step forward goes the new way.
+	//
+	// This stayed on the character deliberately: an enemy has no camera to face.
 	if (bFaceCameraOnAttack)
 	{
 		if (const AController* OwningController = GetController())
@@ -608,8 +443,6 @@ bool ALearningUECharacter::StartAttack(const FAttackDefinition& Attack)
 			SetActorRotation(FRotator(0.0f, OwningController->GetControlRotation().Yaw, 0.0f));
 		}
 	}
-
-	return true;
 }
 
 void ALearningUECharacter::Dodge()
@@ -617,8 +450,8 @@ void ALearningUECharacter::Dodge()
 	// --- free refusals ---
 
 	// one action at a time. Attacking and dodging are both commitments; neither
-	// interrupts the other.
-	if (bIsDodging || bIsAttacking)
+	// interrupts the other. Dodging is ours; attacking is the component's.
+	if (bIsDodging || MeleeAttack->IsAttacking())
 	{
 		return;
 	}

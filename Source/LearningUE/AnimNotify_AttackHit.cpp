@@ -2,7 +2,7 @@
 
 #include "AnimNotify_AttackHit.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "LearningUECharacter.h"
+#include "MeleeAttackComponent.h"
 
 void UAnimNotify_AttackHit::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
@@ -14,12 +14,18 @@ void UAnimNotify_AttackHit::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 	}
 
 	// The notify is handed the MESH, so the actor it belongs to is one step up.
-	// Epic's version casts to an interface here because three different classes can
-	// attack. We have one, so a direct cast is honest. When the enemy needs to swing
-	// in Phase 5, that is the moment an interface starts earning its keep.
-	if (ALearningUECharacter* Character = Cast<ALearningUECharacter>(MeshComp->GetOwner()))
+	//
+	// This used to cast to ALearningUECharacter, with a note that the enemy needing to
+	// swing would be the moment to generalise. That moment arrived. Asking what the actor
+	// HAS rather than what it IS means one notify serves the player, the enemy, and
+	// anything else that ever grows an attack component - including actors that share no
+	// base class at all.
+	if (AActor* Attacker = MeshComp->GetOwner())
 	{
-		Character->DoAttackTrace(AttackBoneName);
+		if (UMeleeAttackComponent* Attack = Attacker->FindComponentByClass<UMeleeAttackComponent>())
+		{
+			Attack->DoAttackTrace(AttackBoneName);
+		}
 	}
 }
 
