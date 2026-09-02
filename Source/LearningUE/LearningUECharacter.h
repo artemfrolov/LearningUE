@@ -214,12 +214,30 @@ protected:
 	// --- noise ---
 
 	/**
-	 *  How often movement noise is reported, in seconds. Not a stealth dial - it is the
-	 *  resolution of the reporting. Too long and you can dash between two reports; too
-	 *  short and every enemy re-evaluates constantly for nothing.
+	 *  How often we SAMPLE our own movement, in seconds. Not how often noise is made -
+	 *  this is only the clock that measures distance travelled. Shorter is more accurate
+	 *  and costs almost nothing.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.05"))
-	float NoiseInterval = 0.35f;
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.02"))
+	float NoiseInterval = 0.1f;
+
+	/**
+	 *  Centimetres of travel between noise events - a stride.
+	 *
+	 *  Noise is emitted per DISTANCE, not per second, because that is how footsteps
+	 *  actually work. Emitting on a fixed clock meant slow movement laid down noise
+	 *  events more densely than fast movement, so sneaking was noisier per metre than
+	 *  walking. Distance-based, speed changes the RATE of footsteps as well as their
+	 *  loudness, and both push the same way.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "10.0"))
+	float NoiseStrideDistance = 200.0f;
+
+	/** Where we were at the last sample, for measuring how far we have come. */
+	FVector LastNoiseSampleLocation = FVector::ZeroVector;
+
+	/** Travel accumulated since the last footstep. Spends down to zero on each step. */
+	float DistanceSinceLastNoise = 0.0f;
 
 	/** Below this speed, in cm/s, movement makes no sound at all. */
 	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.0"))

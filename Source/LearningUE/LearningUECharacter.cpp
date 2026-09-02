@@ -87,9 +87,12 @@ void ALearningUECharacter::BeginPlay()
 		UE_LOG(LogLearningUE, Error, TEXT("%s has no EquippedWeapon set - it cannot attack."), *GetName());
 	}
 
-	// Start announcing how much noise we make. A repeating timer rather than Tick: the
-	// AI only re-evaluates a few times a second anyway, so reporting faster than that
-	// would be work nothing can perceive.
+	// Measure travel from where we start, or the first sample counts the whole distance
+	// from the world origin as one enormous stride.
+	LastNoiseSampleLocation = GetActorLocation();
+
+	// Samples our movement so footsteps can be spaced by distance. A timer rather than
+	// Tick: this needs to be regular, not per-frame.
 	GetWorld()->GetTimerManager().SetTimer(
 		NoiseTimer,
 		this,
@@ -124,14 +127,37 @@ void ALearningUECharacter::ReportMovementNoise()
 		return;
 	}
 
+	// How far we have come since the last sample. Measured from actual positions rather
+	// than speed x time, so being shoved, blocked by a wall or launched all count
+	// honestly - only ground covered makes footsteps.
+	const FVector Here = GetActorLocation();
+	const float Travelled = FVector::Dist2D(Here, LastNoiseSampleLocation);
+	LastNoiseSampleLocation = Here;
+
 	// Size2D and not Size: falling makes vertical speed, and dropping off a ledge should
 	// not be louder than running along it.
 	const float Speed = GetVelocity().Size2D();
 
 	if (Speed < SilentSpeedThreshold)
 	{
+		// Standing still is silent, and it also resets the stride. Otherwise you could
+		// creep 199cm, stop, and have a footstep waiting to fire the moment you twitch.
+		DistanceSinceLastNoise = 0.0f;
 		return;
 	}
+
+	// Not a full stride yet, so no foot has come down.
+	DistanceSinceLastNoise += Travelled;
+
+	if (DistanceSinceLastNoise < NoiseStrideDistance)
+	{
+		return;
+	}
+
+	// Reset rather than subtract: a sprint sample can cover more than a whole stride, and
+	// carrying the remainder forward would make the next step land early. Capping the
+	// rate at one step per sample is the honest behaviour anyway.
+	DistanceSinceLastNoise = 0.0f;
 
 	// Loudness scales with how fast we are ACTUALLY moving, not with which key is held.
 	// Sprinting reports 1.0, walking about 0.55, and a future crouch-walk becomes quiet
