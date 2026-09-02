@@ -31,6 +31,14 @@ public:
 
 protected:
 
+	/**
+	 *  How fast this enemy moves, in cm/s. Deliberately below the player's walk speed of
+	 *  500 so that escaping on foot is always possible and sneaking has a point.
+	 *  Set in the constructor, so changing it here needs a rebuild.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float EnemyWalkSpeed = 400.0f;
+
 	/** The same component the player and the training dummy carry */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStatsComponent* Stats;

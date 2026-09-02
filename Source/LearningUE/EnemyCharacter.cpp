@@ -38,6 +38,11 @@ AEnemyCharacter::AEnemyCharacter()
 	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 
+	// Slower than the player's walk (500) on purpose. An enemy that outruns you turns
+	// every encounter into a fight you did not choose, and it makes the whole detection
+	// system pointless - there is no reason to sneak past something you cannot escape.
+	GetCharacterMovement()->MaxWalkSpeed = EnemyWalkSpeed;
+
 	// the same component the player and the training dummy carry. No shared game class
 	// between the three of them.
 	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
