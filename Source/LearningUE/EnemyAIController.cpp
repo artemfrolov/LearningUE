@@ -398,7 +398,13 @@ void AEnemyAIController::Think()
 		{
 			// MoveToActor tracks a MOVING goal - it repaths on its own as the player
 			// runs, which MoveToLocation would not do.
-			MoveToActor(Target, AttackRange);
+			//
+			// bStopOnOverlap = FALSE is the important argument. Left at its default of
+			// true, path following adds the two capsule radii to the acceptance radius
+			// "so the bodies just touch" - so asking for 150 actually stopped the enemy
+			// at about 234cm, permanently outside the reach of its own fist. With it
+			// off, the number means the distance it says.
+			MoveToActor(Target, CombatApproachDistance, /*bStopOnOverlap=*/ false);
 			break;
 		}
 

@@ -182,8 +182,26 @@ void ALearningUECharacter::HandleDeath(AActor* Killer)
 	// place that knows how to stop sprinting, and a corpse must not keep draining stamina
 	SprintEnd();
 
-	// stop the character where it stands. A real death gets a montage and a ragdoll in Phase 3.
+	// a swing already in the air dies with us
+	MeleeAttack->CancelAttack();
+
+	// stop the character where it stands
 	GetCharacterMovement()->DisableMovement();
+
+	// Movement was already off, but input was not - a corpse could still throw punches
+	// and roll. DisableInput cuts the whole Enhanced Input mapping, so nothing the player
+	// presses reaches this pawn again. Phase 7's restart is what turns it back on.
+	if (APlayerController* OwningController = GetController<APlayerController>())
+	{
+		DisableInput(OwningController);
+	}
+
+	// Fall down. No ragdoll for the player, unlike the enemy: the camera boom is attached
+	// to the capsule, and a ragdolling body slides out from under its own camera.
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
 }
 
 void ALearningUECharacter::HandleDamaged(float Amount, AActor* Causer)

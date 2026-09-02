@@ -107,6 +107,18 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* AttackAction;
 
+	/**
+	 *  Played when this character is killed. Set to one of the AM_Death_* montages.
+	 *
+	 *  One montage, not the four directional ones the enemy picks between. Choosing by
+	 *  the direction of the killing blow is real logic that already exists on
+	 *  AEnemyCharacter, and copying it here would be the second copy - the point at
+	 *  which it should become a shared component instead. Logged as debt rather than
+	 *  duplicated.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	UAnimMontage* DeathMontage;
+
 	/** Flinch played when a blow lands. Additive, so it layers over whatever we are doing. */
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UAnimMontage* HitReactMontage;

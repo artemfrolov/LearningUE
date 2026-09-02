@@ -44,6 +44,15 @@ AEnemyCharacter::AEnemyCharacter()
 	// system pointless - there is no reason to sneak past something you cannot escape.
 	GetCharacterMovement()->MaxWalkSpeed = EnemyWalkSpeed;
 
+	// A LIVING enemy must not shove the player's camera either. The spring arm traces on
+	// the Camera channel every frame, so a fist swinging past your head - or through it -
+	// blocks that trace and snaps the camera to your shoulders for a frame. Corpses were
+	// exempted in Phase 3; this is the same problem while the body is still standing.
+	//
+	// Third-person action games almost universally ignore pawns for camera collision, for
+	// exactly this reason.
+	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+
 	// the same component the player and the training dummy carry. No shared game class
 	// between the three of them.
 	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
@@ -162,11 +171,6 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-	// A corpse must not shove the player's camera about. The spring arm traces on the
-	// Camera channel every frame and pulls in when something blocks it, so a body you
-	// just walked into springs the camera to your shoulders.
-	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	const float Duration = PlayAnimMontage(SelectDeathMontage(Killer));
 

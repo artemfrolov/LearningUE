@@ -188,9 +188,23 @@ protected:
 	/** When we last threw a punch. Runtime state. */
 	float LastAttackTime = -1000.0f;
 
-	/** How close to get before stopping, in cm. Melee reach, roughly. */
+	/**
+	 *  How close a target must be before we will swing at it, in cm. Measured centre to
+	 *  centre, and it has to cover the weapon's reach plus the target's own radius.
+	 */
 	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))
 	float AttackRange = 150.0f;
+
+	/**
+	 *  How close we WALK, in cm. Deliberately shorter than AttackRange.
+	 *
+	 *  Two numbers rather than one, because they answer different questions and using
+	 *  one for both deadlocks: walk to exactly your reach and any drift puts you a
+	 *  centimetre outside it, so you take a step, arrive, drift again, and never swing.
+	 *  Closing inside the range leaves room to shuffle without falling out of it.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))
+	float CombatApproachDistance = 110.0f;
 
 	/** How close counts as "arrived" when walking to the last known location, in cm. */
 	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))
