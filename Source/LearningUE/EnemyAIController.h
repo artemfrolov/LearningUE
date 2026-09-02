@@ -177,6 +177,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AI|Tuning", meta = (ClampMin = "0.0"))
 	float SearchAcceptanceRadius = 100.0f;
 
+	/**
+	 *  TEMPORARY, 5.3 only. Logs speed and acceleration every think, to find out why the
+	 *  locomotion animation is not playing. Delete once the sliding is solved.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AI|Debug")
+	bool bLogLocomotionValues = true;
+
 	/** Draw the current state above the enemy's head. Turn off before packaging. */
 	UPROPERTY(EditAnywhere, Category = "AI|Debug")
 	bool bShowStateDebug = true;
