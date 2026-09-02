@@ -397,6 +397,20 @@ void ALearningUECharacter::UpdateMaxWalkSpeed()
 	GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
 }
 
+void ALearningUECharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	// This fires for EVERY montage on this character. Attacks used to be handled here
+	// too; the melee component subscribes to the same delegate for its own montage now,
+	// so all that is left to us is the dodge.
+	if (Montage == DodgeMontage)
+	{
+		bIsDodging = false;
+
+		// put the scale back, or the next root-motion animation is silently shortened
+		SetAnimRootMotionTranslationScale(1.0f);
+	}
+}
+
 void ALearningUECharacter::Attack()
 {
 	TryAttack(false);
