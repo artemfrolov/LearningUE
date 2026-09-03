@@ -984,3 +984,23 @@ Roadmap reorganised 2026-09-02 — phases below are one editor domain each. See 
 - [ ] Phase 12 — Animation, deeper
 - [ ] Phase 13 — Framework and persistence
 - [ ] **Phase 14 — Planning the real project**
+
+---
+
+## Next session starts here
+
+**State:** Phases 0–5 complete and merged to `main`. Working tree clean. The game runs:
+sneak, sprint, dodge, light and heavy attacks, two data-driven weapons, armour matchups,
+and two enemies that see, hear, search and hit back. Both sides can die.
+
+**Next:** **Phase 6.1 — the Blueprint editor, mapped.** Branch `phase6-blueprint` off
+`main`. The goal is an anatomy tour of `BP_ThirdPersonCharacter` and `BP_Enemy`, not new
+features: Class Settings vs Class Defaults, the `+ Add` button, the eight My Blueprint
+sections, and the three main tabs. Nothing is built in 6.1 — it is a map of a room I have
+never looked at properly.
+
+**Read first:** CLAUDE.md — the roadmap changed on 2026-09-02. Phases are now one editor
+domain each, packaging is dropped, and there is a table of UE 5.8 facts that contradict
+most tutorials. Verify editor UI against the running editor rather than from memory.
+
+**Do not:** propose combat polish, or re-add packaging. Both were ruled out deliberately.
