@@ -1,11 +1,13 @@
 // Learning project - written by hand, not from the template.
 
 #include "EnemyCharacter.h"
+#include "EnemyAIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "LearningUE.h"
 #include "StatsComponent.h"
+#include "MeleeAttackComponent.h"
 #include "TimerManager.h"
 
 AEnemyCharacter::AEnemyCharacter()
@@ -22,15 +24,53 @@ AEnemyCharacter::AEnemyCharacter()
 	// Half the capsule height down, ninety degrees round.
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -89.0f), FRotator(0.0f, -90.0f, 0.0f));
 
-	// face where it is moving, not where some controller is looking - the same
-	// third-person setup the player uses
+	// Face what the CONTROLLER is looking at, not where the feet are going.
+	//
+	// The player uses bOrientRotationToMovement, which turns the body to face its own
+	// velocity - right for someone steering with a camera. An AI wants the opposite: it
+	// should keep looking at you while it circles, backs off, or walks past. So the
+	// controller decides the facing (via SetFocus) and the body turns toward it at
+	// RotationRate.
+	//
+	// With no focus set, the AI controller points itself along its current path, so a
+	// walking enemy still faces where it is going. Both cases come out right.
 	bUseControllerRotationYaw = false;
-	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+
+	// Slower than the player's walk (500) on purpose. An enemy that outruns you turns
+	// every encounter into a fight you did not choose, and it makes the whole detection
+	// system pointless - there is no reason to sneak past something you cannot escape.
+	GetCharacterMovement()->MaxWalkSpeed = EnemyWalkSpeed;
+
+	// A LIVING enemy must not shove the player's camera either. The spring arm traces on
+	// the Camera channel every frame, so a fist swinging past your head - or through it -
+	// blocks that trace and snaps the camera to your shoulders for a frame. Corpses were
+	// exempted in Phase 3; this is the same problem while the body is still standing.
+	//
+	// Third-person action games almost universally ignore pawns for camera collision, for
+	// exactly this reason.
+	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	// the same component the player and the training dummy carry. No shared game class
 	// between the three of them.
 	Stats = CreateDefaultSubobject<UStatsComponent>(TEXT("Stats"));
+
+	// One line, and this body can fight. Compare with what the player character had to
+	// carry before 5.4a extracted it.
+	MeleeAttack = CreateDefaultSubobject<UMeleeAttackComponent>(TEXT("MeleeAttack"));
+
+	// --- the brain ---
+
+	// Which controller class to spawn for this body. The pawn does not contain its own
+	// AI; it names the controller that will drive it.
+	AIControllerClass = AEnemyAIController::StaticClass();
+
+	// And when to spawn it. PlacedInWorldOrSpawned covers both enemies already standing
+	// in the level and any spawned later. The default is Disabled, which is why an
+	// AIControllerClass alone possesses nothing and the enemy just stands there.
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 
 void AEnemyCharacter::BeginPlay()
@@ -51,6 +91,10 @@ void AEnemyCharacter::HandleDamaged(float Amount, AActor* Causer)
 	{
 		return;
 	}
+
+	// Poise, same rule the player lives under since 3.7: being hit mid-swing costs you
+	// the swing and the stamina. One line here, because the component owns the swing.
+	MeleeAttack->CancelAttack();
 
 	// if a usable flinch montage is ever set, prefer it over the shove
 	if (HitReactMontage)
@@ -127,11 +171,6 @@ void AEnemyCharacter::HandleDeath(AActor* Killer)
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-	// A corpse must not shove the player's camera about. The spring arm traces on the
-	// Camera channel every frame and pulls in when something blocks it, so a body you
-	// just walked into springs the camera to your shoulders.
-	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	const float Duration = PlayAnimMontage(SelectDeathMontage(Killer));
 

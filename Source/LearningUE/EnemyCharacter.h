@@ -8,6 +8,7 @@
 
 class UAnimMontage;
 class UStatsComponent;
+class UMeleeAttackComponent;
 
 /**
  *  A humanoid that can be hit.
@@ -31,9 +32,28 @@ public:
 
 protected:
 
+	/**
+	 *  How fast this enemy moves, in cm/s. Deliberately below the player's walk speed of
+	 *  500 so that escaping on foot is always possible and sneaking has a point.
+	 *  Set in the constructor, so changing it here needs a rebuild.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float EnemyWalkSpeed = 400.0f;
+
 	/** The same component the player and the training dummy carry */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStatsComponent* Stats;
+
+	/**
+	 *  The same component the player carries. Not a copy of the player's attack code -
+	 *  literally the same class, holding a different weapon asset.
+	 *
+	 *  This is the payoff for 5.4a. Everything the enemy needs to fight - montages,
+	 *  stamina cost, hit traces, damage, armour lookup, not hitting the same target
+	 *  twice - arrived with this one line.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UMeleeAttackComponent* MeleeAttack;
 
 	/**
 	 *  Played when a blow lands. Deliberately left empty: the template's hit reactions
@@ -46,6 +66,13 @@ protected:
 	/** How hard a hit shoves this character back, in cm/s. The stand-in for a flinch. */
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float HitKnockbackImpulse = 400.0f;
+
+public:
+
+	/** Returns the melee attack component, so the AI controller can ask it to swing. */
+	FORCEINLINE UMeleeAttackComponent* GetMeleeAttack() const { return MeleeAttack; }
+
+protected:
 
 	/** Death animations, one per direction the killing blow came from. */
 	UPROPERTY(EditAnywhere, Category = "Combat|Death")

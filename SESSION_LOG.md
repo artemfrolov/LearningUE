@@ -794,14 +794,193 @@ than an upgrade path — and nothing in that table is written in code.
   copy. Third copy makes it a component.
 - **`bShowAttackTrace` still defaults to true.** Turn off before packaging in Phase 7.
 
+---
+
+## Sessions 10–12 — 2026-08-31 → 2026-09-03 — Phase 5: Enemy AI & perception
+
+Branch: `phase5-ai`.
+
+### The finding that shaped the phase
+
+Epic shipped a complete StateTree AI in `Variant_Combat` — a controller and eight
+hand-written C++ tasks. **But their enemy has no senses at all.** `FStateTreeGetPlayerInfoTask`
+calls `UGameplayStatics::GetPlayerPawn()` directly: it always knows exactly where the
+player is, through walls, from any distance, facing any direction. Across the whole
+`Source/` tree there are **zero** uses of AIPerception, BehaviorTree or Blackboard.
+
+So the phase split in two: **senses**, which had to be built from nothing, and
+**behaviour**, which Epic had already solved and we could read. All the value was in the
+first half — the four detection states are the design doc's sneaking system, and they
+cannot be copied from anywhere in this template.
+
+### Resolved: the StateTree vs Behavior Tree question left open in Session 1
+
+**StateTree.** The plugins are already enabled and in `Build.cs`, Epic's own 5.8 combat
+sample uses it, and StateTree left beta in 5.8. Behavior Trees are not deprecated and
+have far more tutorials — which is the honest downside: searching "Unreal AI tutorial"
+returns Behavior Trees overwhelmingly, and that mismatch is expected, not a wrong turn.
+
+In the event the four states were built as a **plain C++ state machine**, because
+perception, states and hearing are all independent of how behaviour is orchestrated.
+Reading Epic's StateTree and deciding whether to port is deferred; it was never reached.
+
+### What exists now
+
+| Thing | Where | Whose |
+|---|---|---|
+| `AEnemyAIController` — perception, four states, hearing | `EnemyAIController.h/.cpp` | mentor-written |
+| `EEnemyAlertState` — Relaxed / Alerted / Searching / Attacking | `EnemyAIController.h` | mentor-written |
+| Sight sense: cone, hysteresis, memory, affiliation | `EnemyAIController.cpp` | mentor-written |
+| Hearing sense + distance-based footstep noise | both characters | mentor-written; the model is **mine** |
+| Sneak (Left Ctrl) and `UpdateMaxWalkSpeed` | `LearningUECharacter.cpp` | mentor-written |
+| `UMeleeAttackComponent` — the third-copy extraction | `MeleeAttackComponent.h/.cpp` | mentor-written |
+| Enemy attacks, cooldown, commitment | `EnemyAIController.cpp` | mentor-written |
+| Player death: montage, input disabled | `LearningUECharacter.cpp` | mentor-written |
+| NavMeshBoundsVolume, cover columns | level | **mine** |
+| `IA_Sneak` + Left Ctrl binding | `Content/Input/` | **mine** |
+| `DA_EnemyFists` | `Content/Data/` | **mine** |
+| `Use Acceleration for Paths` on BP_Enemy | `BP_Enemy` | **mine** |
+
+### What I can explain now
+
+- **The brain is a separate actor from the body.** A Controller possesses a Pawn, exactly
+  as a PlayerController possesses my character. Swap the controller and the same body
+  behaves differently.
+- **Perception is a subscription, not a poll.** Configure a sense — radius, cone, memory —
+  and the engine calls back on CHANGE. Never "can I see him yet?" on a timer.
+- **One component, many senses.** The perception component is machinery; each sense is a
+  config object handed to it. Both report through one delegate, told apart by
+  `FAIStimulus::Type`.
+- **The affiliation trap.** Sight reports only ENEMIES by default, but "enemy" needs a
+  team system, and without one every actor is NEUTRAL — so the stock configuration
+  detects nothing, silently. The single most common reason people think AIPerception is
+  broken.
+- **`PeripheralVisionAngleDegrees` is HALF the cone.** 60 means a 120° field of view.
+- **`AutoSuccessRangeFromLastSeenLocation` can only prevent LOSING a target, never find
+  one** — the name says it. Proven by two experiments: touching an unaware enemy from
+  behind stays undetected (a backstab window), but circling close around one that has
+  already seen me does not break its sight.
+- **Hearing has no "stopped hearing" event.** Sight reports both directions; ears only
+  ever report success.
+- **`LastKnownLocation`, not the target's position.** On a sight LOSS the stimulus
+  location is where the target was last sensed. That one variable is the difference
+  between an enemy that searches and an enemy that cheats.
+- **Entry actions once, repeated work on the tick.** `SetAlertState` holds everything that
+  happens on arriving; `Think` holds everything that repeats. Mixing them is how state
+  machines rot — a move order re-issued five times a second never gets anywhere.
+- **`MoveToActor` tracks a moving goal; `MoveToLocation` does not.** Using the wrong one
+  is why chasing AI sometimes follows your ghost.
+- **A NavMesh is pre-computed walkable surface.** No mesh, no path, and `MoveTo` fails
+  silently. Press **P** to see it.
+- **AI movement and keyboard movement come through different doors.** Input produces
+  Acceleration, which produces velocity. Path following sets velocity directly and leaves
+  Acceleration at zero. That is a real behavioural difference, not a detail.
+- **Nothing links "moving" to "run animation".** Unlike Roblox's Humanoid, a skeletal mesh
+  plays only what its Anim Blueprint decides. `ABP_Unarmed` gates it on
+  `GroundSpeed > 0 AND Acceleration != 0`, so every AI in the engine slides until told
+  otherwise.
+- **`OnPossess`, not the constructor**, for anything belonging to the pawn — a controller
+  is built before it has a body.
+- **"Unresolved external symbol" always means declared-but-no-body.** The compiler was
+  happy; the linker could not find the code.
+- **Live Coding cannot create new classes.** New files or header changes mean closing the
+  editor and a full rebuild, and the build fails with exit code 6 rather than saying so
+  loudly.
+
+### Design rules added this phase
+
+16. **Two thresholds, not one.** `LoseSightRadius` (1800) is deliberately larger than
+    `SightRadius` (1500), and `CombatApproachDistance` (110) deliberately smaller than
+    `AttackRange` (150). One number for both means anything sitting on the boundary
+    oscillates — seen/lost/seen, or walk/arrive/drift/walk. Hysteresis is free.
+17. **Entry actions once, repeated work on the tick.** And one function owns every state
+    change, so one place logs them and nothing can bypass it.
+18. **Emit per the unit the player experiences.** Footsteps happen per metre, not per
+    second. Getting that backwards made sneaking noisier per metre than walking — the
+    exact opposite of the mechanic.
+19. **A default argument can carry policy.** `MoveToActor`'s `bStopOnOverlap` defaults to
+    true and silently adds both capsule radii to the acceptance radius. Asking for 150
+    stopped the enemy at ~234, permanently outside its own reach.
+20. **Choose fallbacks so a missing thing degrades to "no effect".** A controller whose
+    pawn has no attack component chases and never swings, logged as a warning. Not an
+    error, because that is a valid unarmed enemy.
+21. **When it is the third copy, extract it.** Written as debt in Phase 3, executed here.
+
+### Bugs I found by playing
+
+1. **A column with a 5cm gap under it** let enemies see through the floor. Diagnosed by
+   me from the AI's behaviour alone; fixed by sinking the geometry. AI sight is a single
+   line trace, so any gap is a perfect sightline — a real production problem, and
+   "sink it into the floor" is the professional answer.
+2. **The enemy stopped outside its own reach** and could never attack (rule 19).
+3. **A living enemy's fist collapsed the camera** when it passed near my head — the mesh
+   blocked the Camera channel. Corpses were exempted in Phase 3; living bodies were not.
+4. **Sneaking produced MORE noise events than walking** (rule 18), and each one reset a
+   searching enemy's give-up timer, so sneaking made escape harder.
+5. **Enemies slid with no run animation** — acceleration was zero.
+6. **Player death was DisableMovement and nothing else**: standing in idle, still able to
+   punch.
+
+### Where I corrected the mentor
+
+- **The footstep model.** Told that noise fired on a timer, I asked whether it fired "when
+  I step with a specific foot" — which is what it should do. It now fires per distance.
+- **`AutoSuccessRangeFromLastSeenLocation`.** The mentor described it as "you cannot sneak
+  up on someone by standing on their toes." My two experiments showed the opposite: it is
+  anti-loss only, and sneaking up to touch an unaware enemy works fine.
+- **Unusable editor instructions.** The Anim Blueprint debug-object walkthrough was too
+  compressed to follow. Rewritten, and the actual diagnosis was done with a log line
+  instead — the right call, since a log line costs me nothing.
+- **The mentor's own mistakes this phase:** two blind range deletes in the source (one
+  duplicated a block, one deleted `HandleMontageEnded` and broke the link); "yellow arrow
+  on the left" for a reset indicator that is grey and on the right; "Create Advanced
+  Asset" for a menu heading that has not existed since UE 5.6.
+
+### The course correction — 2026-09-02
+
+Combat works and feels unpolished, and that is not a systems problem: no hit stop, no
+sound, no animation blending, no invincibility frames, a roll standing in for a sidestep,
+and montages authored for something else. That layer is animation and audio work.
+
+More importantly, the sessions had become **write C++ → build → set a dropdown →
+repeat**. The remaining gap is the editor, not the code. Phases 6+ are reorganised around
+one editor domain per phase; packaging is dropped; the final phase becomes planning the
+real project. See CLAUDE.md.
+
+### Known debt
+
+- **No team system.** `IsPlayerControlled()` is a stand-in in two places. Enemies also
+  friendly-fire each other, which was accepted deliberately.
+- **Damage reaction is still duplicated** between player and enemy, and death montage
+  selection now is too — the player has one montage where the enemy picks directionally.
+  This is the next extraction.
+- **Footsteps should be anim notifies** on the actual contact frames, not a distance
+  approximation. That is also where the sound goes in Phase 7.
+- **`Use Acceleration for Paths` is a Blueprint tick**, not C++ — losable, and invisible
+  to anyone reading the source.
+- **No patrol.** `Relaxed` stands still.
+- **The enemy never throws its heavy attack**, and has no dodge or block.
+- **The dodge still has no invincibility frames**, so it is travel rather than defence.
+- **`bShowAttackTrace` and `bShowStateDebug` both default to true.**
+
 ### Phase progress
 
 - [x] **Phase 0 — Orientation**
 - [x] **Phase 1 — Input & movement**
 - [x] **Phase 2 — Stats as a component**
 - [x] **Phase 3 — Melee combat**
-- [x] **Phase 4 — Data-driven design** (DataAssets for weapons, a DataTable of armour
-      matchups, damage types, the mitigation formula; skills table deliberately skipped)
-- [ ] Phase 5 — Enemy AI & perception
-- [ ] Phase 6 — Where GAS fits (decision session)
-- [ ] **Phase 7 — Ship it** (menu, packaging, install on son's PC)
+- [x] **Phase 4 — Data-driven design**
+- [x] **Phase 5 — Enemy AI & perception** (AIController, sight, hearing, four detection
+      states, sneaking, the melee attack component, enemy attacks, player death)
+
+Roadmap reorganised 2026-09-02 — phases below are one editor domain each. See CLAUDE.md.
+
+- [ ] Phase 6 — Blueprint, properly
+- [ ] Phase 7 — Audio
+- [ ] Phase 8 — Materials and post-process
+- [ ] Phase 9 — UI and menus
+- [ ] Phase 10 — The world: level and lighting
+- [ ] Phase 11 — VFX with Niagara
+- [ ] Phase 12 — Animation, deeper
+- [ ] Phase 13 — Framework and persistence
+- [ ] **Phase 14 — Planning the real project**

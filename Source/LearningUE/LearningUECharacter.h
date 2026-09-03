@@ -5,13 +5,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
-#include "WeaponData.h"
 #include "LearningUECharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 class UStatsComponent;
+class UMeleeAttackComponent;
 class UUserWidget;
 class UAnimMontage;
 struct FInputActionValue;
@@ -38,6 +38,13 @@ class ALearningUECharacter : public ACharacter
 	/** Health, and later stamina and mana. Attached, not inherited. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStatsComponent* Stats;
+
+	/**
+	 *  Swinging, hit traces, and the weapon. Attached, not inherited - the enemy needs
+	 *  exactly this and shares no game class with us.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UMeleeAttackComponent* MeleeAttack;
 
 protected:
 
@@ -69,35 +76,48 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Movement")
 	float SprintSpeed = 900.0f;
 
+	/**
+	 *  Movement speed while sneaking, in cm/s. The stealth number: loudness is speed
+	 *  divided by SprintSpeed, so 200 reports about 0.22 and is heard from roughly 4.4m
+	 *  instead of the 11m a normal walk carries.
+	 */
+	UPROPERTY(EditAnywhere, Category="Movement")
+	float SneakSpeed = 200.0f;
+
+	/** Sneak Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* SneakAction;
+
+	/** True while the sneak key is held. */
+	bool bIsSneaking = false;
+
+	/** True while sprinting. Was implicit in MaxWalkSpeed until a third speed existed. */
+	bool bIsSprinting = false;
+
+	/**
+	 *  The single place that decides how fast we move.
+	 *
+	 *  Three states now want to set MaxWalkSpeed, and three callers each setting it
+	 *  themselves is how "attacking while sneaking silently cancels the sneak" gets in.
+	 *  This derives the speed from the flags instead, so no caller can disagree.
+	 */
+	void UpdateMaxWalkSpeed();
+
 	/** Attack Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* AttackAction;
 
 	/**
-	 *  What this character fights with. Both attacks, their damage, their stamina costs
-	 *  and the reach of the blow all now live in this one asset instead of in eight
-	 *  fields on the character. Set to DA_Fists in the Blueprint.
+	 *  Played when this character is killed. Set to one of the AM_Death_* montages.
 	 *
-	 *  A pointer to an asset, exactly like the montage pointers above - the difference is
-	 *  that a montage is one animation, while this is a whole weapon's worth of facts.
+	 *  One montage, not the four directional ones the enemy picks between. Choosing by
+	 *  the direction of the killing blow is real logic that already exists on
+	 *  AEnemyCharacter, and copying it here would be the second copy - the point at
+	 *  which it should become a shared component instead. Logged as debt rather than
+	 *  duplicated.
 	 */
-	UPROPERTY(EditAnywhere, Category="Combat")
-	UWeaponData* EquippedWeapon;
-
-	/**
-	 *  The swing currently in flight - a copy of the definition StartAttack accepted.
-	 *
-	 *  Two members used to live here, one for the montage and one for the damage. They
-	 *  are one member now, because the anim notify fires later and needs to know
-	 *  EVERYTHING about the attack, not two facts about it. Add a field to
-	 *  FAttackDefinition and it arrives here automatically.
-	 *
-	 *  A copy rather than a pointer: the weapon could in principle be swapped mid-swing,
-	 *  and the blow that is already travelling should still be the blow you threw.
-	 *  UPROPERTY so the garbage collector sees the montage pointer inside the struct.
-	 */
-	UPROPERTY()
-	FAttackDefinition CurrentAttack;
+	UPROPERTY(EditAnywhere, Category = "Combat|Death")
+	UAnimMontage* DeathMontage;
 
 	/** Flinch played when a blow lands. Additive, so it layers over whatever we are doing. */
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -113,10 +133,6 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Category="Combat")
 	bool bFaceCameraOnAttack = true;
-
-	/** Draw the trace shape in the world. Turn off before packaging. */
-	UPROPERTY(EditAnywhere, Category="Combat|Debug")
-	bool bShowAttackTrace = true;
 
 	/** Dodge Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -148,18 +164,6 @@ protected:
 	/** When the last dodge happened. Runtime state, not a setting, so no UPROPERTY. */
 	float LastDodgeTime = -1000.0f;
 
-	/** True from the moment an attack montage starts until it ends. Runtime state. */
-	bool bIsAttacking = false;
-
-	/**
-	 *  Who this swing has already hit. Cleared when an attack starts, not when a trace
-	 *  runs - a heavy attack in 3.7 will have two notifies in one montage, and the second
-	 *  trace must not re-hit whoever the first one caught.
-	 *  UPROPERTY so the garbage collector keeps these entries honest.
-	 */
-	UPROPERTY()
-	TSet<AActor*> HitActorsThisSwing;
-
 	/** Stamina spent per dodge. A tuning value, so it lives in the Blueprint too. */
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float DodgeStaminaCost = 25.0f;
@@ -183,6 +187,49 @@ protected:
 
 	/** Called by the sprint timer. Pays for one interval of sprinting. */
 	void SprintDrainTick();
+
+	// --- noise ---
+
+	/**
+	 *  How often we SAMPLE our own movement, in seconds. Not how often noise is made -
+	 *  this is only the clock that measures distance travelled. Shorter is more accurate
+	 *  and costs almost nothing.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.02"))
+	float NoiseInterval = 0.1f;
+
+	/**
+	 *  Centimetres of travel between noise events - a stride.
+	 *
+	 *  Noise is emitted per DISTANCE, not per second, because that is how footsteps
+	 *  actually work. Emitting on a fixed clock meant slow movement laid down noise
+	 *  events more densely than fast movement, so sneaking was noisier per metre than
+	 *  walking. Distance-based, speed changes the RATE of footsteps as well as their
+	 *  loudness, and both push the same way.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "10.0"))
+	float NoiseStrideDistance = 200.0f;
+
+	/** Where we were at the last sample, for measuring how far we have come. */
+	FVector LastNoiseSampleLocation = FVector::ZeroVector;
+
+	/** Travel accumulated since the last footstep. Spends down to zero on each step. */
+	float DistanceSinceLastNoise = 0.0f;
+
+	/** Below this speed, in cm/s, movement makes no sound at all. */
+	UPROPERTY(EditAnywhere, Category = "Stealth", meta = (ClampMin = "0.0"))
+	float SilentSpeedThreshold = 20.0f;
+
+	FTimerHandle NoiseTimer;
+
+	/**
+	 *  Tells the world how much noise we are making. Called by NoiseTimer.
+	 *
+	 *  The character does not know that AI exists - it announces a fact about itself and
+	 *  anything with ears may or may not pick it up. Same shape as the stats component
+	 *  broadcasting rather than calling the HUD.
+	 */
+	void ReportMovementNoise();
 
 public:
 
@@ -247,6 +294,12 @@ protected:
 	/** Called when the sprint input ends */
 	void SprintEnd();
 
+	/** Called when the sneak input starts */
+	void SneakStart();
+
+	/** Called when the sneak input ends */
+	void SneakEnd();
+
 	/** Called when the dodge input fires */
 	void Dodge();
 
@@ -257,24 +310,13 @@ protected:
 	void HeavyAttack();
 
 	/**
-	 *  Shared attack machinery. Returns false and changes nothing if the attack was
-	 *  refused. Light and heavy differ only in the definition handed in - one argument
-	 *  now instead of three, and adding a fourth value to an attack changes no
-	 *  signature here at all.
-	 *
-	 *  const& because FAttackDefinition is a struct: passing it plainly would COPY all
-	 *  its fields, and we only need to read them.
+	 *  Shared by both attack inputs. Asks the component to swing, and if it agrees,
+	 *  applies the things that are OUR business rather than the component's: stopping a
+	 *  sprint and turning to face the camera.
 	 */
-	bool StartAttack(const FAttackDefinition& Attack);
+	void TryAttack(bool bHeavy);
 
 public:
-
-	/**
-	 *  Sweeps for targets in front of the given bone. Called by the Attack Hit anim
-	 *  notify at the frame the blow lands - never on a schedule, and never by the
-	 *  input code, because only the animation knows when the fist is actually out there.
-	 */
-	void DoAttackTrace(FName BoneName);
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
@@ -302,5 +344,8 @@ public:
 
 	/** Returns the Stats component **/
 	FORCEINLINE class UStatsComponent* GetStats() const { return Stats; }
+
+	/** Returns the melee attack component **/
+	FORCEINLINE class UMeleeAttackComponent* GetMeleeAttack() const { return MeleeAttack; }
 };
 
