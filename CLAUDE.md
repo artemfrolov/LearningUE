@@ -81,8 +81,10 @@ not how much code you produce. Follow these rules in every session:
 8. **Comment for a learner.** In generated C++, comment the intent of blocks, not
    every line. Mark idioms worth remembering with `// UE idiom:`.
 9. **Git discipline.** Work on feature branches. Commit after each working step with
-   clear messages. Never leave the repo in a broken state at session end. Remind me
-   to commit if I forget.
+   clear messages. **Push to `origin` after committing — always, without asking.** The
+   remote is the real history, not a publication step. Merge the feature branch into
+   `main` with `--no-ff` at the end of a phase, and push that too. Never leave the repo
+   in a broken state at session end. Remind me to commit if I forget.
 10. **MCP care.** When using the Unreal editor MCP tools: prefer read/inspect
    operations freely; for operations that create, modify, or delete assets or actors,
    tell me first what will change in the editor. Never bulk-delete anything.
