@@ -1099,15 +1099,15 @@ Both found by reading the running editor, exactly as the Phase 6 method requires
 **State:** Phases 0–5 merged to `main`. On branch `phase6-blueprint`, one commit in:
 documentation only, no code and no assets touched. The game is unchanged and runs.
 
-**Next:** **Phase 6.2 — EventGraph grammar, taught by building 6.4's actor.** Merged on
-purpose: rather than an abstract tour of node types, learn execution wires vs data wires
-by building a **self-configuring actor in the Construction Script** — the classic fence
-that shows N posts in the editor viewport the instant you type N, no Play, no compile.
-Entirely in the editor, zero C++. I asked for this at the end of 6.1.
+**Next:** **Phase 6.2 — EventGraph grammar.** Events, nodes, execution wires vs data
+wires, variables. Roadmap order unchanged: 6.3 pickup (Blueprint-only overlap/heal/
+destroy) · 6.4 Construction Script, the self-configuring actor · 6.5 functions, macros,
+interfaces · 6.6 event dispatchers · 6.7 the C++/Blueprint boundary keywords · 6.8 the
+5.8 Create menu.
 
-Order after that: 6.3 pickup (Blueprint-only overlap/heal/destroy) · 6.5 functions,
-macros, interfaces · 6.6 event dispatchers · 6.7 the C++/Blueprint boundary keywords ·
-6.8 the 5.8 Create menu.
+At the end of 6.1 I asked, out of curiosity, whether a Construction Script actor could be
+built purely in the editor with no C++. The answer is yes and that is 6.4 — it was a
+question, not a request to reorder anything.
 
 **Read first:** CLAUDE.md — the UE 5.8 facts table. Two more entries earned this session:
 My Blueprint has six sections, and the tab is `EventGraph`.

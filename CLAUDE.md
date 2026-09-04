@@ -205,10 +205,9 @@ The biggest gap and the biggest fear. Most Unreal work happens here.
 
 - [x] **6.1** Anatomy: Class Settings vs Class Defaults, the `+ Add` button, the six My
   Blueprint sections, Viewport / Construction Script / EventGraph
-- **6.2 + 6.4 (merged)** EventGraph grammar — events, nodes, execution wires vs data
-  wires, variables — taught by building the Construction Script actor that configures
-  itself when placed. Merged at the learner's request at the end of 6.1
+- **6.2** EventGraph grammar: events, nodes, execution wires vs data wires, variables
 - **6.3** A pickup built **entirely in Blueprint** — overlap, heal, destroy. Zero C++
+- **6.4** Construction Script: an actor that configures itself when placed
 - **6.5** Functions, macros, Blueprint Interfaces
 - **6.6** Event Dispatchers — Blueprint's version of the C++ delegates from Phase 2
 - **6.7** The boundary: `BlueprintCallable` / `BlueprintImplementableEvent` / `BlueprintNativeEvent`
