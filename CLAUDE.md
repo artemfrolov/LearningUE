@@ -184,6 +184,9 @@ Verified against the installed engine on 2026-09-02. Trust these over any tutori
 | Thing | Reality in UE 5.8 |
 |---|---|
 | Content Browser create menu | **"Create Advanced Asset" no longer exists.** One **Create** section; categories are plain submenus. Renamed: Sounds→**Audio**, AI→**Artificial Intelligence**, Misc→**Miscellaneous**. New: **Data, Input, Foliage, Cinematics** |
+| My Blueprint panel | **Six** sections, not eight: GRAPHS, FUNCTIONS, INTERFACES, MACROS, VARIABLES, EVENT DISPATCHERS. VARIABLES lists only variables the Blueprint declares *itself* — inherited C++ properties appear in Class Defaults instead |
+| Blueprint editor tabs | **Viewport / Construction Script / EventGraph** — `EventGraph` is one word |
+| Components panel divider | Sits after the root scene component's whole subtree, not between C++ and Blueprint components. Vertical order is a cosmetic display sort; **only the indent carries meaning** |
 | Reset-to-default indicator | A small **grey curved-back arrow at the FAR RIGHT of the row**, only when the value differs from default. Not yellow, not on the left. Details panel also has an **All / Favorites / Modified** filter bar |
 | Components panel button | Labelled **`+ Add`**, not "Add Component" |
 | Build Lighting | Does nothing — `r.AllowStaticLighting=False`. **Lumen is fully dynamic; there is nothing to bake** |
@@ -200,11 +203,12 @@ Verified against the installed engine on 2026-09-02. Trust these over any tutori
 
 The biggest gap and the biggest fear. Most Unreal work happens here.
 
-- **6.1** Anatomy: Class Settings vs Class Defaults, the `+ Add` button, all eight My
-  Blueprint sections, Viewport / Construction Script / Event Graph
-- **6.2** Event Graph grammar: events, nodes, execution wires vs data wires, variables
+- [x] **6.1** Anatomy: Class Settings vs Class Defaults, the `+ Add` button, the six My
+  Blueprint sections, Viewport / Construction Script / EventGraph
+- **6.2 + 6.4 (merged)** EventGraph grammar — events, nodes, execution wires vs data
+  wires, variables — taught by building the Construction Script actor that configures
+  itself when placed. Merged at the learner's request at the end of 6.1
 - **6.3** A pickup built **entirely in Blueprint** — overlap, heal, destroy. Zero C++
-- **6.4** Construction Script: an actor that configures itself when placed
 - **6.5** Functions, macros, Blueprint Interfaces
 - **6.6** Event Dispatchers — Blueprint's version of the C++ delegates from Phase 2
 - **6.7** The boundary: `BlueprintCallable` / `BlueprintImplementableEvent` / `BlueprintNativeEvent`
