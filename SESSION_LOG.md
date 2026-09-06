@@ -987,20 +987,210 @@ Roadmap reorganised 2026-09-02 — phases below are one editor domain each. See 
 
 ---
 
+## Session 13 — 2026-09-03 → 2026-09-04 — Phase 6.1: the Blueprint editor, mapped
+
+Branch `phase6-blueprint`. **Nothing was built.** A guided tour of
+`BP_ThirdPersonCharacter` with the editor open, verifying every UI claim against the
+running editor rather than against tutorials — which caught two errors in my own
+roadmap before we got past the second panel.
+
+### What exists now
+
+Nothing new. No files changed except this log and CLAUDE.md.
+
+### What I can explain now
+
+- **A Blueprint asset is one class, edited through three tabs.** In Roblox, a Model holds
+  the Parts and a Script inside it holds the behaviour — two places. Unreal folds the
+  parts list, the code, and the default property values into a single asset. The tabs
+  (**Viewport / Construction Script / EventGraph**) are views of one class, not files.
+- **`BP_ThirdPersonCharacter` is itself a class**, a subclass of `ALearningUECharacter`
+  authored in an editor instead of a text file. At runtime its name carries a `_C`
+  suffix — `BP_ThirdPersonCharacter_C` — Unreal's marker for "class generated from a
+  Blueprint." The same suffix appears on `ABP_Unarmed_C` in the Mesh's Anim Class field.
+- **In the Components panel, indentation is the contract and vertical order is
+  decoration.** Indentation means attachment, exactly like Roblox parenting; it is a
+  drawing of the `SetupAttachment()` calls in the C++ constructor. `SetupAttachment` is
+  `instance.Parent = other`.
+- **The root is the collision capsule, not the body.** The skeletal mesh hangs off it at
+  `Z = -89` so the feet reach the bottom of the capsule instead of the hips sitting at
+  its centre. Movement moves the capsule; the mesh follows.
+- **The divider line in the Components panel** is inserted immediately after the root
+  scene component's whole subtree (verified in `SSubobjectEditor.cpp:2652`). It means
+  "above: the root and everything attached to it; below: components attached to
+  nothing." It is *not* a C++-vs-Blueprint line and not an engine-vs-my-code line.
+- **What decides which side something lands on is the TYPE, not my code.** A
+  `USceneComponent` has a transform, so it must hang off something — if it were left
+  unattached the editor would still parent it to the root. A `UActorComponent` has no
+  transform, so there is nothing to hang.
+- **A movement component is a brain, not an object in the world.** It holds an
+  `UpdatedComponent` pointer aimed at the capsule and writes a new position into it
+  every frame. Asking where it is located is like asking where a `for` loop is located.
+- **Blueprint-added components are unnamed to C++, not invisible.** No compile-time
+  pointer exists, so `PointLight->SetIntensity()` cannot compile — but
+  `FindComponentByClass<UPointLightComponent>()` finds it at runtime. Not in the C++
+  constructor, though: that runs before the Blueprint's own components exist. `BeginPlay`
+  is the earliest point that works.
+- **My Blueprint → VARIABLES lists only variables this Blueprint declares itself.**
+  Inherited C++ properties never appear there; they appear in Class Defaults and the
+  Details panel. An empty VARIABLES section means "added none of its own", not "has none".
+- **Class Settings vs Class Defaults.** Settings = facts about the class — parent class,
+  interfaces, abstract. Defaults = starting values for every property, i.e. editing the
+  CDO. *If it changes what the class **is**, it is Settings; what it **starts with**,
+  Defaults.*
+- **A Blueprint Interface is a contract** — function signatures with no bodies. The
+  declared-up-front version of the `FindComponentByClass` move: ask what a thing can do,
+  not what it is. Web anchor: a TypeScript `interface`.
+- **The Override dropdown's right-hand column is an ORIGIN column, not a history
+  column.** `AnyDamage → Actor` means `AActor` declares it, not that anyone overrode it.
+  Read down the column and the inheritance chain appears:
+  `AActor → APawn → ACharacter → ALearningUECharacter → BP_ThirdPersonCharacter`.
+- **Construction Script is not the C++ constructor.** The constructor runs once at engine
+  startup building the CDO, with no world to touch. The Construction Script runs on every
+  placement, move, or property edit *in the editor with the game stopped*, and again at
+  spawn before `BeginPlay`. It re-runs constantly and discards what it made last time, so
+  it must be pure.
+
+### What the tour revealed about this project
+
+The player character's **entire Blueprint contribution** is: asset pointers
+(`SKM_Quinn_Simple`, `ABP_Unarmed_C`, `MI_Quinn_01/02`) plus a four-function adapter
+implementing the `Touch` interface, each forwarding straight into C++ (`Do Look`,
+`Do Move`, `Do Jump Start`, `Do Jump End`). Zero variables, zero event dispatchers, zero
+components of its own — every row in the Components panel reads `Edit in C++`.
+
+The boundary policy of this project is not written down anywhere. It is **visible as two
+empty lists**.
+
+### Roadmap corrections made this session
+
+Both found by reading the running editor, exactly as the Phase 6 method requires:
+
+1. **My Blueprint has SIX sections, not eight.** GRAPHS, FUNCTIONS, INTERFACES, MACROS,
+   VARIABLES, EVENT DISPATCHERS.
+2. **The tab is `EventGraph`, one word** in 5.8.
+
+### Where I corrected the mentor
+
+- Asked why Character Movement sits above the divider when it is the same flat kind as
+  Stats. It does not fit the rule I had been given. It turned out the panel's vertical
+  order is decided by a display-sort step with no structural meaning — the honest answer
+  was "the layout lies about its own grouping; trust the indent."
+- The Components panel had been scrolled, hiding the `BP_ThirdPersonCharacter (Self)`
+  root row. Without that row the indent levels cannot be read at all.
+
+### Phase progress
+
+- [x] **Phases 0–5** — see above
+- [ ] **Phase 6 — Blueprint, properly** — 6.1 done (anatomy tour)
+- [ ] Phase 7 — Audio
+- [ ] Phase 8 — Materials and post-process
+- [ ] Phase 9 — UI and menus
+- [ ] Phase 10 — The world: level and lighting
+- [ ] Phase 11 — VFX with Niagara
+- [ ] Phase 12 — Animation, deeper
+- [ ] Phase 13 — Framework and persistence
+- [ ] **Phase 14 — Planning the real project**
+
+---
+
+## Session 14 — 2026-09-06 — Phase 6.2: EventGraph grammar
+
+Branch `phase6-blueprint`. Read my own character's EventGraph as code, then built a
+throwaway Blueprint to do the wiring by hand. One new asset, no C++.
+
+### What exists now
+
+| Thing | Where | Whose |
+|---|---|---|
+| `BP_GraphSandbox` — BeginPlay → Set → Print String | `Content/Blueprints/` | **mine** |
+
+Deliberately kept rather than deleted: a scratch graph to try nodes in without touching
+anything that matters.
+
+### What I can explain now
+
+- **A Blueprint graph is code, drawn.** My character's whole EventGraph is four lines:
+  `onSecondaryThumbstick(x, y) { self.doLook(x, y); }` and three more like it.
+- **Two kinds of wire, and the PIN SHAPE says which before the colour does.**
+  Triangle ▷ = execution = *order*, the `;` between statements. Circle ● = data =
+  *values*, an argument being passed. Text code welds these together in one line;
+  Blueprint draws them as two independent wires.
+- **They really are independent.** I proved it by moving a `SET` to run *after* the
+  `Print String` that reads the variable. It printed the old value. **A data wire never
+  drags a statement earlier in the order** — it means "when this node runs, read that",
+  not "get this first."
+- **Data-wire colour is the type.** Green float to green float connects; green to blue
+  (object reference) is refused.
+- **The Target pin is the receiver** — `self.doLook(...)`. Blueprint makes the thing
+  before the dot into a visible wire. Wire something else in and you call the function
+  on that instead.
+- **Pure vs impure: no triangles = an expression, not an action.** Not "it's a variable" —
+  math nodes, comparisons and `Get Actor Location` are all pure too. The test is whether
+  it *does* something or merely *has a value*. A pure node has no place in the order, so
+  asking when it runs is the wrong question.
+- **Get has no triangles, Set has them.** Assignment happens at a point in time.
+- **The wire-count rules.** Exec output: exactly one — there is only one "next
+  statement", so a second connection silently *replaces* the first. Exec input: many.
+  Data output: many. Data input: exactly one.
+- **A data input pin has a typed-in box OR a wire, never both.** The box is the fallback
+  for when nothing is wired; once a wire lands the box could never be used, so the editor
+  hides it instead of showing a dead control.
+- **Compile before setting a default value.** Defaults live on the CDO, and the CDO has no
+  such field until the class is recompiled. There is literally nothing to assign to.
+- **Drag off a pin, don't right-click empty space.** Releasing a drag from a pin gives a
+  menu filtered to what can legally connect there. Ctrl+drag a variable = Get,
+  Alt+drag = Set.
+- **Breaking wires:** Alt+click a pin breaks that link; right-click → Break All Pin
+  Link(s); Ctrl+drag moves an existing wire to another pin.
+- **Canvas position means nothing.** Only wires do. I reordered execution without moving
+  a single node.
+- **`Print String` is `console.log` / Roblox `print()`.** Editor and development builds
+  only. It writes to the `LogBlueprintUserMessages` category, which is how you filter the
+  Output Log down to your own messages.
+- **Class vs instance, in one log line.**
+  `BP_GraphSandbox_C_UAID_50EBF6486EAD26FF02_1883453463` — `_C` is the class generated
+  from the Blueprint, the `UAID_…` tail is the single actor I dragged into the level.
+- **Unreal has an infinite-loop guard.** A cyclic exec chain aborts the graph and logs
+  `Infinite Loop Detected` rather than hanging the editor.
+
+### Where I corrected the mentor
+
+- The rewiring instructions were incomplete: I was told to connect
+  `Print String → SET` while `SET → Print String` still existed, which is a cycle.
+  I spotted it before running and broke the extra wire myself. Then rebuilt the cycle
+  deliberately to see what the engine does about it — which is how the infinite-loop
+  guard got into this log.
+- The wire-*deletion* vocabulary had never been given at all; it was only written down
+  after I needed it.
+
+### Phase progress
+
+- [x] **Phases 0–5** — see above
+- [ ] **Phase 6 — Blueprint, properly** — 6.1 anatomy, 6.2 EventGraph grammar
+- [ ] Phase 7 — Audio
+- [ ] Phase 8 — Materials and post-process
+- [ ] Phase 9 — UI and menus
+- [ ] Phase 10 — The world: level and lighting
+- [ ] Phase 11 — VFX with Niagara
+- [ ] Phase 12 — Animation, deeper
+- [ ] Phase 13 — Framework and persistence
+- [ ] **Phase 14 — Planning the real project**
+
+---
+
 ## Next session starts here
 
-**State:** Phases 0–5 complete and merged to `main`. Working tree clean. The game runs:
-sneak, sprint, dodge, light and heavy attacks, two data-driven weapons, armour matchups,
-and two enemies that see, hear, search and hit back. Both sides can die.
+**State:** Phases 0–5 merged to `main`. On branch `phase6-blueprint`: 6.1 (anatomy tour)
+and 6.2 (EventGraph grammar) done. One new asset, `BP_GraphSandbox`, kept on purpose as a
+scratch graph. No C++ touched since Phase 5; the game is unchanged and runs.
 
-**Next:** **Phase 6.1 — the Blueprint editor, mapped.** Branch `phase6-blueprint` off
-`main`. The goal is an anatomy tour of `BP_ThirdPersonCharacter` and `BP_Enemy`, not new
-features: Class Settings vs Class Defaults, the `+ Add` button, the eight My Blueprint
-sections, and the three main tabs. Nothing is built in 6.1 — it is a map of a room I have
-never looked at properly.
+**Next:** **Phase 6.3 — a pickup built entirely in Blueprint.** Overlap, heal, destroy,
+zero C++. First time the grammar from 6.2 does something real: a collision volume, an
+overlap event, a call into the existing `UStatsComponent`, and `Destroy Actor`. Then
+6.4 Construction Script · 6.5 functions, macros, interfaces · 6.6 event dispatchers ·
+6.7 the C++/Blueprint boundary keywords · 6.8 the 5.8 Create menu.
 
-**Read first:** CLAUDE.md — the roadmap changed on 2026-09-02. Phases are now one editor
-domain each, packaging is dropped, and there is a table of UE 5.8 facts that contradict
-most tutorials. Verify editor UI against the running editor rather than from memory.
+**Read first:** CLAUDE.md — the UE 5.8 facts table, which grew in 6.1.
 
 **Do not:** propose combat polish, or re-add packaging. Both were ruled out deliberately.
