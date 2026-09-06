@@ -1094,22 +1094,103 @@ Both found by reading the running editor, exactly as the Phase 6 method requires
 
 ---
 
+## Session 14 — 2026-09-06 — Phase 6.2: EventGraph grammar
+
+Branch `phase6-blueprint`. Read my own character's EventGraph as code, then built a
+throwaway Blueprint to do the wiring by hand. One new asset, no C++.
+
+### What exists now
+
+| Thing | Where | Whose |
+|---|---|---|
+| `BP_GraphSandbox` — BeginPlay → Set → Print String | `Content/Blueprints/` | **mine** |
+
+Deliberately kept rather than deleted: a scratch graph to try nodes in without touching
+anything that matters.
+
+### What I can explain now
+
+- **A Blueprint graph is code, drawn.** My character's whole EventGraph is four lines:
+  `onSecondaryThumbstick(x, y) { self.doLook(x, y); }` and three more like it.
+- **Two kinds of wire, and the PIN SHAPE says which before the colour does.**
+  Triangle ▷ = execution = *order*, the `;` between statements. Circle ● = data =
+  *values*, an argument being passed. Text code welds these together in one line;
+  Blueprint draws them as two independent wires.
+- **They really are independent.** I proved it by moving a `SET` to run *after* the
+  `Print String` that reads the variable. It printed the old value. **A data wire never
+  drags a statement earlier in the order** — it means "when this node runs, read that",
+  not "get this first."
+- **Data-wire colour is the type.** Green float to green float connects; green to blue
+  (object reference) is refused.
+- **The Target pin is the receiver** — `self.doLook(...)`. Blueprint makes the thing
+  before the dot into a visible wire. Wire something else in and you call the function
+  on that instead.
+- **Pure vs impure: no triangles = an expression, not an action.** Not "it's a variable" —
+  math nodes, comparisons and `Get Actor Location` are all pure too. The test is whether
+  it *does* something or merely *has a value*. A pure node has no place in the order, so
+  asking when it runs is the wrong question.
+- **Get has no triangles, Set has them.** Assignment happens at a point in time.
+- **The wire-count rules.** Exec output: exactly one — there is only one "next
+  statement", so a second connection silently *replaces* the first. Exec input: many.
+  Data output: many. Data input: exactly one.
+- **A data input pin has a typed-in box OR a wire, never both.** The box is the fallback
+  for when nothing is wired; once a wire lands the box could never be used, so the editor
+  hides it instead of showing a dead control.
+- **Compile before setting a default value.** Defaults live on the CDO, and the CDO has no
+  such field until the class is recompiled. There is literally nothing to assign to.
+- **Drag off a pin, don't right-click empty space.** Releasing a drag from a pin gives a
+  menu filtered to what can legally connect there. Ctrl+drag a variable = Get,
+  Alt+drag = Set.
+- **Breaking wires:** Alt+click a pin breaks that link; right-click → Break All Pin
+  Link(s); Ctrl+drag moves an existing wire to another pin.
+- **Canvas position means nothing.** Only wires do. I reordered execution without moving
+  a single node.
+- **`Print String` is `console.log` / Roblox `print()`.** Editor and development builds
+  only. It writes to the `LogBlueprintUserMessages` category, which is how you filter the
+  Output Log down to your own messages.
+- **Class vs instance, in one log line.**
+  `BP_GraphSandbox_C_UAID_50EBF6486EAD26FF02_1883453463` — `_C` is the class generated
+  from the Blueprint, the `UAID_…` tail is the single actor I dragged into the level.
+- **Unreal has an infinite-loop guard.** A cyclic exec chain aborts the graph and logs
+  `Infinite Loop Detected` rather than hanging the editor.
+
+### Where I corrected the mentor
+
+- The rewiring instructions were incomplete: I was told to connect
+  `Print String → SET` while `SET → Print String` still existed, which is a cycle.
+  I spotted it before running and broke the extra wire myself. Then rebuilt the cycle
+  deliberately to see what the engine does about it — which is how the infinite-loop
+  guard got into this log.
+- The wire-*deletion* vocabulary had never been given at all; it was only written down
+  after I needed it.
+
+### Phase progress
+
+- [x] **Phases 0–5** — see above
+- [ ] **Phase 6 — Blueprint, properly** — 6.1 anatomy, 6.2 EventGraph grammar
+- [ ] Phase 7 — Audio
+- [ ] Phase 8 — Materials and post-process
+- [ ] Phase 9 — UI and menus
+- [ ] Phase 10 — The world: level and lighting
+- [ ] Phase 11 — VFX with Niagara
+- [ ] Phase 12 — Animation, deeper
+- [ ] Phase 13 — Framework and persistence
+- [ ] **Phase 14 — Planning the real project**
+
+---
+
 ## Next session starts here
 
-**State:** Phases 0–5 merged to `main`. On branch `phase6-blueprint`, one commit in:
-documentation only, no code and no assets touched. The game is unchanged and runs.
+**State:** Phases 0–5 merged to `main`. On branch `phase6-blueprint`: 6.1 (anatomy tour)
+and 6.2 (EventGraph grammar) done. One new asset, `BP_GraphSandbox`, kept on purpose as a
+scratch graph. No C++ touched since Phase 5; the game is unchanged and runs.
 
-**Next:** **Phase 6.2 — EventGraph grammar.** Events, nodes, execution wires vs data
-wires, variables. Roadmap order unchanged: 6.3 pickup (Blueprint-only overlap/heal/
-destroy) · 6.4 Construction Script, the self-configuring actor · 6.5 functions, macros,
-interfaces · 6.6 event dispatchers · 6.7 the C++/Blueprint boundary keywords · 6.8 the
-5.8 Create menu.
+**Next:** **Phase 6.3 — a pickup built entirely in Blueprint.** Overlap, heal, destroy,
+zero C++. First time the grammar from 6.2 does something real: a collision volume, an
+overlap event, a call into the existing `UStatsComponent`, and `Destroy Actor`. Then
+6.4 Construction Script · 6.5 functions, macros, interfaces · 6.6 event dispatchers ·
+6.7 the C++/Blueprint boundary keywords · 6.8 the 5.8 Create menu.
 
-At the end of 6.1 I asked, out of curiosity, whether a Construction Script actor could be
-built purely in the editor with no C++. The answer is yes and that is 6.4 — it was a
-question, not a request to reorder anything.
-
-**Read first:** CLAUDE.md — the UE 5.8 facts table. Two more entries earned this session:
-My Blueprint has six sections, and the tab is `EventGraph`.
+**Read first:** CLAUDE.md — the UE 5.8 facts table, which grew in 6.1.
 
 **Do not:** propose combat polish, or re-add packaging. Both were ruled out deliberately.
