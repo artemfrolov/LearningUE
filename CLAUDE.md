@@ -187,6 +187,7 @@ Verified against the installed engine on 2026-09-02. Trust these over any tutori
 | My Blueprint panel | **Six** sections, not eight: GRAPHS, FUNCTIONS, INTERFACES, MACROS, VARIABLES, EVENT DISPATCHERS. VARIABLES lists only variables the Blueprint declares *itself* — inherited C++ properties appear in Class Defaults instead |
 | Blueprint editor tabs | **Viewport / Construction Script / EventGraph** — `EventGraph` is one word |
 | Components panel divider | Sits after the root scene component's whole subtree, not between C++ and Blueprint components. Vertical order is a cosmetic display sort; **only the indent carries meaning** |
+| Blueprint math nodes | Named **Divide / Multiply / Add**, not the UE4-era `float / float`. Float pins are "Real" in UE5 |
 | Reset-to-default indicator | A small **grey curved-back arrow at the FAR RIGHT of the row**, only when the value differs from default. Not yellow, not on the left. Details panel also has an **All / Favorites / Modified** filter bar |
 | Components panel button | Labelled **`+ Add`**, not "Add Component" |
 | Build Lighting | Does nothing — `r.AllowStaticLighting=False`. **Lumen is fully dynamic; there is nothing to bake** |
