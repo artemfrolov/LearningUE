@@ -73,9 +73,41 @@ industry standard is the default unless there is a reason to deviate.
 
 ---
 
-## 14.2 Structure and conventions ⏳
+## 14.2 Structure and conventions (decided 2026-09-07, codename pending)
 
-Folders, naming, modules, source control incl. Git LFS.
+### Source control ✅ GitHub private + Git LFS from commit zero
+
+`.gitattributes` covering all binary types (`*.uasset`, `*.umap`, textures, audio,
+meshes) exists before the first asset is committed. GitHub's free LFS tier is 10 GB
+storage + 10 GB/month bandwidth (verified 2026-09-07 — the old 1 GB figure in
+tutorials is outdated). Safety rails: Fab/Quixel imports are trimmed to used assets
+before committing, and the GitHub spending limit stays at $0 so overage fails instead
+of charging. **Fallback if 10 GB nears:** pay, or migrate LFS to Azure DevOps (free,
+effectively unlimited). Rejected for now: Azure DevOps as primary (unfamiliar, no
+current need).
+
+### Repo layout ✅ monorepo (Artem's proposal)
+
+Repo root = Claude Code project root (CLAUDE.md, README, SESSION_LOG.md), with
+`Game/` holding the .uproject and everything Unreal generates, and `Docs/` holding
+DECISIONS.md and design documentation. The two never mix: no docs inside `Game/`,
+nothing UE-generated outside it. Future siblings (`Tools/` etc.) as needed.
+
+### Naming ✅ standard Unreal prefix conventions
+
+`BP_`, `ABP_`, `GA_`, `GE_`, `DA_`, `WBP_`, `M_`/`MI_`, `T_`, `SM_`/`SK_`, `NS_`,
+etc. Full table goes in the real repo's conventions doc. Claude enforces it.
+
+### C++ modules ✅ one runtime module
+
+Named after the codename. Split only if a real need appears. Folders inside mirror
+the content domains (by game feature, not asset type — Lyra-style).
+
+### Project codename ⏳
+
+The repo, module, and `Content/<Name>/` folder name. Explicitly NOT the game's
+title — a codename that is acceptable in C++ prefixes forever; the title can arrive
+any time, even post-release.
 
 ## 14.3 Tooling ⏳
 
