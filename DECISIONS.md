@@ -111,9 +111,41 @@ the crystals are one expression of it, not the theme. Explicitly a codename, NOT
 shipped title: the Riot series of the same name only matters if "Arcane" is ever
 chosen as the public title, which is a separate, later decision.
 
-## 14.3 Tooling ⏳
+## 14.3 Tooling ✅ (decided 2026-09-07)
 
-Which MCP servers earn their place, what each gives, known risks.
+**The rule: pain-first.** A tool is added when a concrete, recurring pain appears that
+it demonstrably solves — never preemptively. **Budget: free/local only.** No paid or
+token-metered services beyond the existing Claude subscription.
+
+### Day one
+- **Unreal MCP** — same constitution as the learning project: read/inspect freely,
+  announce mutations, never bulk-delete. Excluded from packaged builds; it broke
+  packaging once here, so it is the first suspect when builds misbehave.
+- Rejected as redundant: GitHub MCP (git/gh CLI suffice), docs-mirror servers (we
+  verify against the running editor).
+
+### Earmarked — pre-approved, added when their phase arrives
+- **Blender + Blender MCP** — for the custom-asset phase. Monorepo gets an `Assets/`
+  root sibling for .blend sources/exports; gitignore or LFS-review if it grows heavy.
+- **Local image generation + open-source image-to-3D** (Stable-Diffusion-family;
+  TRELLIS / Hunyuan3D) → Blender Decimate for triangle budgets. Props, not characters.
+
+### Art strategy (attached decision)
+Free assets (Fab / Quixel / Epic) while gameplay is being proven; custom style pass
+later. Visual identity comes primarily from consistent lighting/materials/post over
+whatever meshes exist — Artem's concern about "looks like every free-asset game" is
+addressed there first, custom meshes second.
+
+### Animations — not an MCP problem
+Epic's free **Game Animation Sample** (500+ AAA locomotion clips) + **Mixamo** (free
+library) via the IK Retargeter; **Cascadeur** free indie tier for custom moves
+(parries, casts, techniques). Hand-keying from scratch rejected; AI
+text-to-animation rejected as immature.
+
+### Sound — download, don't generate
+Curated free libraries: Sonniss GDC packs, freesound.org, Zapsplat; trim and layer.
+Generative SFX rejected — tried by Artem across several services, consistently
+unsatisfying.
 
 ## 14.4 How we work ⏳
 
