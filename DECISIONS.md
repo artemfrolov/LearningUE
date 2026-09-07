@@ -48,7 +48,28 @@ ever becomes worth it; that call belongs to a future with something shipped.
 
 **Rejected:** waiting for UE6; starting on 5.8 with a planned mid-project upgrade.
 
-### Where C++ ends and Blueprint begins (written policy) ⏳
+### Where C++ ends and Blueprint begins ✅ four-rule policy (decided 2026-09-07)
+
+**Decision** — the written policy, adopted as the industry-standard split (Epic's Lyra
+sample follows the same shape):
+
+1. **Systems and state live in C++.** Components, GAS attributes and damage math, save
+   data, AI logic, anything with an algorithm. An `if` chain longer than three
+   branches belongs in C++.
+2. **Blueprint subclasses of C++ classes hold content.** Asset references, tuning
+   numbers, animation/VFX/sound hookups — the game is balanced in the editor without
+   compiling.
+3. **Blueprint-only is allowed for** UI widgets (layout and light glue), one-off level
+   scripting, and prototyping — with the standing rule that a prototype that survives
+   gets promoted to C++ once its shape stabilizes.
+4. **Logic exists in exactly one place.** Blueprint never reimplements what C++ already
+   does; if Blueprint needs it, C++ exposes it via BlueprintCallable /
+   BlueprintImplementableEvent / BlueprintNativeEvent.
+
+**Why:** it codifies what Phases 0–5 already practiced (C++ components, Blueprint
+dropdowns), and it is the mainstream Unreal convention, so ecosystem examples and
+future collaborators assume it. Adopted on Claude's recommendation; Artem's position:
+industry standard is the default unless there is a reason to deviate.
 
 ---
 
