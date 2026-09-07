@@ -34,7 +34,19 @@ regret GAS are tiny games (overkill) or multiplayer games (prediction complexity
 **Rejected:** growing the Phase 0–5 hand-built components (StatsComponent,
 TryConsumeStamina, DodgeCooldown, CalculateMitigatedDamage) into a homemade GAS.
 
-### Engine version and UE5→UE6 timing ⏳
+### Engine version and UE5→UE6 timing ✅ UE 5.8 (decided 2026-09-07)
+
+**Decision:** The real game is built on UE 5.8. No waiting for UE6, no mid-project
+engine upgrades by default.
+
+**Why:** 5.8 is the final UE5 release and gets bug fixes only — the most stable
+possible target, with zero engine churn for the project's lifetime. UE6 (announced
+May 2026) targets Early Access end of 2027 and full release 12–18 months later —
+realistically 2029, and a fresh major version is the worst thing to build on. All
+skills and code (GAS included — Fortnite runs on it) carry forward if a migration
+ever becomes worth it; that call belongs to a future with something shipped.
+
+**Rejected:** waiting for UE6; starting on 5.8 with a planned mid-project upgrade.
 
 ### Where C++ ends and Blueprint begins (written policy) ⏳
 
