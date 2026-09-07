@@ -147,9 +147,39 @@ Curated free libraries: Sonniss GDC packs, freesound.org, Zapsplat; trim and lay
 Generative SFX rejected — tried by Artem across several services, consistently
 unsatisfying.
 
-## 14.4 How we work ⏳
+## 14.4 How we work ✅ (decided 2026-09-07)
 
-Which CLAUDE.md rules survive, session-log habit, Claude's work vs my review.
+**The shift:** the learning project optimized for Artem's understanding; Arcane
+optimizes for a game existing, with understanding as a strong second.
+
+### Division of labour — option (c), chosen by Artem
+- **Claude does everything possible:** all code, and all editor work reachable via
+  MCP. Destructive operations are always confirmed first; never bulk-delete; routine
+  work is reported in briefings rather than announced per-click.
+- **Artem's hands:** whatever Claude cannot do — opening/closing the editor,
+  REGENERATE & BUILD, installs, logins, GPU-local pipelines — on Claude's command,
+  plus review of everything via the session log.
+- **Understanding is pull-based:** Artem asks when something is unclear; genuinely
+  new concepts still get the mapping-first explanation before Claude builds on them.
+- **New tools/MCP hookups:** flagged by Claude, who-does-what decided jointly each time.
+
+### Working rhythm — phases, planned properly
+Feature-sized increments organized into phases/subphases, as in past Claude+Artem
+projects. Acknowledged: game dev has more moving pieces than web dev, so planning
+gets MORE time, not less — plans live in documents (see 14.5) and are followed.
+
+### Rules that survive unchanged
+Git discipline (Claude runs it all, feature branches, always push) · answerable
+questions · free-assets-first per 14.3 · honesty about experimental tools · English
+everywhere · SESSION_LOG.md habit.
+
+### Rules that die
+Exercises (no exercises in production) · the strict ~3-new-terms cap · editor work
+reserved for Artem · wait-for-go-ahead on >2-file changes (superseded by phase plans
+approved up front).
+
+### Ownership rule, softened
+Artem should be able to explain every **system** and why it exists — not every line.
 
 ## 14.5 The development plan ⏳
 
