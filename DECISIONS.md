@@ -103,11 +103,13 @@ etc. Full table goes in the real repo's conventions doc. Claude enforces it.
 Named after the codename. Split only if a real need appears. Folders inside mirror
 the content domains (by game feature, not asset type — Lyra-style).
 
-### Project codename ⏳
+### Project codename ✅ Arcane (decided 2026-09-07)
 
-The repo, module, and `Content/<Name>/` folder name. Explicitly NOT the game's
-title — a codename that is acceptable in C++ prefixes forever; the title can arrive
-any time, even post-release.
+Repo `Arcane` (private), module `Arcane` (`ARCANE_API`), content under
+`Content/Arcane/`. Chosen because the game's core concept is Arcane-in-all-things —
+the crystals are one expression of it, not the theme. Explicitly a codename, NOT the
+shipped title: the Riot series of the same name only matters if "Arcane" is ever
+chosen as the public title, which is a separate, later decision.
 
 ## 14.3 Tooling ⏳
 
