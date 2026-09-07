@@ -34,9 +34,9 @@ That's all. Everything else is Claude's job.
 
 Read everything before doing anything.
 
-1. **Read the constitution.** Read `DECISIONS.md` in this folder — all decisions
-   14.1–14.5 are binding. (The learning repo it came from may no longer exist;
-   nothing in this bootstrap depends on it.)
+1. **Read the constitution.** Read `DECISIONS.md` in this folder — every decision
+   in it is binding. (The learning repo it came from may no longer exist; nothing
+   in this bootstrap depends on it.)
    Highlights: GAS · UE 5.8 · four-rule C++/Blueprint boundary · GitHub private +
    LFS from commit zero · monorepo layout · standard naming prefixes · one C++
    module `Arcane` · pain-first tooling, free/local only · division of labour
@@ -54,13 +54,13 @@ Read everything before doing anything.
    has two GitHub accounts in the credential manager and pushes hang on an
    invisible account-picker without it.
 
-3. **Build the monorepo skeleton** per decision 14.2: `Docs/` (move the local
+3. **Build the monorepo skeleton** per the repo-layout decision: `Docs/` (move the local
    `DECISIONS.md` there, plus `Docs/systems/`, empty), `Game/` (empty — stays empty
    until pre-production ends; no UE project yet), `Assets/` (empty — Blender
    sources later). Root: `README.md`, `SESSION_LOG.md`, `CLAUDE.md`. This
    bootstrap file itself can be deleted once executed.
 
-4. **Write the new CLAUDE.md** implementing decision 14.4 — the working agreement,
+4. **Write the new CLAUDE.md** implementing the how-we-work decision — the working agreement,
    not the mentor-mode rules of the learning project. Port what survives (git
    discipline, answerable questions, free-assets-first, honesty about experimental
    tools, English everywhere, session log); drop what died (exercises, term caps,

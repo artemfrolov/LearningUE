@@ -1,14 +1,14 @@
-# DECISIONS.md — Founding decisions for the real project
+# DECISIONS.md — Founding decisions for Project Arcane
 
-Drafted during Phase 14 in this learning repo. When the real project's repository is
-created (during 14.2), this file moves there and becomes a founding document.
+Drafted 2026-09 in the learning project, before the Arcane repository existed. This
+file lives in Docs/ and keeps growing for the life of the project.
 
 Every decision gets: the decision itself, the alternatives we rejected, and why.
 Status marks: ⏳ under discussion · ✅ decided · 🅿 parked.
 
 ---
 
-## 14.1 Foundations
+## Foundations
 
 ### GAS vs hand-built ✅ GAS (decided 2026-09-07)
 
@@ -31,7 +31,7 @@ GAS is a spine, not a swappable module; walking away mid-project would mean rewr
 the stat/ability layer. Judged low for a single-player systems RPG — the teams that
 regret GAS are tiny games (overkill) or multiplayer games (prediction complexity).
 
-**Rejected:** growing the Phase 0–5 hand-built components (StatsComponent,
+**Rejected:** growing the learning project's hand-built components (StatsComponent,
 TryConsumeStamina, DodgeCooldown, CalculateMitigatedDamage) into a homemade GAS.
 
 ### Engine version and UE5→UE6 timing ✅ UE 5.8 (decided 2026-09-07)
@@ -66,14 +66,14 @@ sample follows the same shape):
    does; if Blueprint needs it, C++ exposes it via BlueprintCallable /
    BlueprintImplementableEvent / BlueprintNativeEvent.
 
-**Why:** it codifies what Phases 0–5 already practiced (C++ components, Blueprint
+**Why:** it codifies what the learning project already practiced (C++ components, Blueprint
 dropdowns), and it is the mainstream Unreal convention, so ecosystem examples and
 future collaborators assume it. Adopted on Claude's recommendation; Artem's position:
 industry standard is the default unless there is a reason to deviate.
 
 ---
 
-## 14.2 Structure and conventions (decided 2026-09-07, codename pending)
+## Structure and conventions (decided 2026-09-07)
 
 ### Source control ✅ GitHub private + Git LFS from commit zero
 
@@ -111,7 +111,7 @@ the crystals are one expression of it, not the theme. Explicitly a codename, NOT
 shipped title: the Riot series of the same name only matters if "Arcane" is ever
 chosen as the public title, which is a separate, later decision.
 
-## 14.3 Tooling ✅ (decided 2026-09-07)
+## Tooling ✅ (decided 2026-09-07)
 
 **The rule: pain-first.** A tool is added when a concrete, recurring pain appears that
 it demonstrably solves — never preemptively. **Budget: free/local only.** No paid or
@@ -147,7 +147,7 @@ Curated free libraries: Sonniss GDC packs, freesound.org, Zapsplat; trim and lay
 Generative SFX rejected — tried by Artem across several services, consistently
 unsatisfying.
 
-## 14.4 How we work ✅ (decided 2026-09-07)
+## How we work ✅ (decided 2026-09-07)
 
 **The shift:** the learning project optimized for Artem's understanding; Arcane
 optimizes for a game existing, with understanding as a strong second.
@@ -166,11 +166,13 @@ optimizes for a game existing, with understanding as a strong second.
 ### Working rhythm — phases, planned properly
 Feature-sized increments organized into phases/subphases, as in past Claude+Artem
 projects. Acknowledged: game dev has more moving pieces than web dev, so planning
-gets MORE time, not less — plans live in documents (see 14.5) and are followed.
+gets MORE time, not less — plans live in documents (see The development plan) and
+are followed.
 
 ### Rules that survive unchanged
 Git discipline (Claude runs it all, feature branches, always push) · answerable
-questions · free-assets-first per 14.3 · honesty about experimental tools · English
+questions · free-assets-first per the Tooling decision · honesty about experimental
+tools · English
 everywhere · SESSION_LOG.md habit.
 
 ### Rules that die
@@ -181,7 +183,7 @@ approved up front).
 ### Ownership rule, softened
 Artem should be able to explain every **system** and why it exists — not every line.
 
-## 14.5 The development plan ✅ reshaped: pre-production first (decided 2026-09-07)
+## The development plan ✅ pre-production first (decided 2026-09-07)
 
 **Decision (Artem's call, and the right one):** no development planning yet. A large
 amount of design lives undecided in Artem's head; it gets onto paper first. Systems
@@ -190,11 +192,11 @@ documents — not the other way around. This is industry-standard pre-production
 paper is the cheapest place to be wrong.
 
 **The sequence:**
-1. **Bootstrap session** in the new Arcane repo (see ARCANE_BOOTSTRAP.md in the
-   learning repo): repo + LFS from commit zero, monorepo skeleton, new CLAUDE.md
-   implementing 14.4, ingest Artem's IDEAS.md brain-dump. No UE project yet — Game/
-   stays empty through pre-production; the Unreal MCP hooks up when development
-   starts (14.3 pain-first).
+1. **Bootstrap session** in the new Arcane repo (see ARCANE_BOOTSTRAP.md): repo +
+   LFS from commit zero, monorepo skeleton, new CLAUDE.md implementing the
+   how-we-work agreement, ingest Artem's IDEAS.md brain-dump. No UE project yet —
+   Game/ stays empty through pre-production; the Unreal MCP hooks up when
+   development starts (pain-first rule).
 2. **Design phase:** one design area per session (attributes/skills, combat, magic,
    world, AI/simulation, economy, …), agenda proposed by Claude after reading
    IDEAS.md, approved by Artem. Output: one document per system in Docs/systems/.
@@ -218,6 +220,7 @@ ahead only; mid-milestone ideas go to backlog, never into the milestone; breadth
 
 ## Parking lot 🅿
 
-Topics the original 14.1–14.5 plan missed; we review this list before closing Phase 14.
+Ideas and concerns parked for later; reviewed when planning resumes.
 
-- (empty)
+- **Playtesting:** Artem's son is the playtester-in-waiting once something is
+  playable — a plan for that belongs in the roadmap phase.
