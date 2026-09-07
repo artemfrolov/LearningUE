@@ -10,9 +10,29 @@ Status marks: ⏳ under discussion · ✅ decided · 🅿 parked.
 
 ## 14.1 Foundations
 
-### GAS vs hand-built ⏳
-*The core architectural choice: adopt Epic's Gameplay Ability System, or grow the
-hand-built components from the learning project.*
+### GAS vs hand-built ✅ GAS (decided 2026-09-07)
+
+**Decision:** The real game uses the Gameplay Ability System for attributes, skills,
+abilities, and effects (damage, buffs, enchantments, costs, cooldowns).
+
+**Why:** A systems-first RPG is GAS's home genre — 6 attributes, 24 skills, enchanting,
+six magic schools, and concentration are all "something modifies a stat under conditions,
+for a duration, with stacking rules," which is precisely what GameplayEffects are. The
+hand-built alternative would reinvent GAS piece by piece. Claude writes the C++, which
+blunts the learning curve; and GAS is the industry-standard answer, so the ecosystem
+(tutorials, forums, plugins) assumes it.
+
+**Lock-in concern (raised by Artem, from PM experience with libraries constraining
+features):** assessed and accepted. Mitigations: GAS ships inside the engine with full
+source; extending it is the intended usage, not a workaround; and its blast radius is
+bounded to the stats/abilities/effects domain — inventory, quests, journal, AI
+detection, economy, and stolen-item tracking stay plain C++/Blueprint. Residual risk:
+GAS is a spine, not a swappable module; walking away mid-project would mean rewriting
+the stat/ability layer. Judged low for a single-player systems RPG — the teams that
+regret GAS are tiny games (overkill) or multiplayer games (prediction complexity).
+
+**Rejected:** growing the Phase 0–5 hand-built components (StatsComponent,
+TryConsumeStamina, DodgeCooldown, CalculateMitigatedDamage) into a homemade GAS.
 
 ### Engine version and UE5→UE6 timing ⏳
 
