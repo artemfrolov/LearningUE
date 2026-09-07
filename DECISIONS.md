@@ -181,9 +181,38 @@ approved up front).
 ### Ownership rule, softened
 Artem should be able to explain every **system** and why it exists — not every line.
 
-## 14.5 The development plan ⏳
+## 14.5 The development plan ✅ reshaped: pre-production first (decided 2026-09-07)
 
-Milestone order, first vertical slice of the real game, scope discipline.
+**Decision (Artem's call, and the right one):** no development planning yet. A large
+amount of design lives undecided in Artem's head; it gets onto paper first. Systems
+are designed in documents, then a development roadmap is written against those
+documents — not the other way around. This is industry-standard pre-production:
+paper is the cheapest place to be wrong.
+
+**The sequence:**
+1. **Bootstrap session** in the new Arcane repo (see ARCANE_BOOTSTRAP.md in the
+   learning repo): repo + LFS from commit zero, monorepo skeleton, new CLAUDE.md
+   implementing 14.4, ingest Artem's IDEAS.md brain-dump. No UE project yet — Game/
+   stays empty through pre-production; the Unreal MCP hooks up when development
+   starts (14.3 pain-first).
+2. **Design phase:** one design area per session (attributes/skills, combat, magic,
+   world, AI/simulation, economy, …), agenda proposed by Claude after reading
+   IDEAS.md, approved by Artem. Output: one document per system in Docs/systems/.
+3. **Only then:** ROADMAP.md with milestones, written against the finished designs.
+
+**Docs structure adopted:** VISION.md · DECISIONS.md (this file, moves there) ·
+systems/ (one doc per system, written before building it) · ROADMAP.md (later) ·
+SESSION_LOG.md.
+
+**Parked draft — revisit when the design phase ends** (Claude's milestone sketch,
+explicitly NOT adopted): M0 walking skeleton (GAS plumbing, graybox island, three
+attributes on screen) → M1 "the loop" (one weapon skill + one spell, skill-by-use
+progression visible, one enemy, death both sides) → M2 "choice matters" (second
+weapon, armor matchups, dodge family) → M3 "the island lives" (region blockout,
+first NPC routine, save/load). Scope rules adopted in principle for whenever
+development starts: playable at every milestone end; detailed planning one milestone
+ahead only; mid-milestone ideas go to backlog, never into the milestone; breadth
+(24 skills, 6 schools) built data-driven at N=2, content scaled later.
 
 ---
 
